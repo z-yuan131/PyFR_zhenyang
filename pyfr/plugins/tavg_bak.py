@@ -24,7 +24,7 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
 
         # Averaging mode
         self.mode = self.cfg.get(cfgsect, 'mode', 'windowed')
-        if self.mode not in {'continuous', 'windowed', 'instant'}:
+        if self.mode not in {'continuous', 'windowed'}:
             raise ValueError('Invalid averaging mode')
 
         # Expressions pre-processing
@@ -52,8 +52,7 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
         # Time averaging parameters
         self.tstart = self.cfg.getfloat(cfgsect, 'tstart', 0.0)
         self.dtout = self.cfg.getfloat(cfgsect, 'dt-out')
-        if self.mode != 'instant':
-            self.nsteps = self.cfg.getint(cfgsect, 'nsteps')
+        self.nsteps = self.cfg.getint(cfgsect, 'nsteps')
 
         # Register our output times with the integrator
         intg.call_plugin_dt(self.dtout)
@@ -99,11 +98,6 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
         if self.mode == 'continuous':
             self.caccex = [np.zeros_like(a) for a in self.accex]
             self.tstart_actual = intg.tcurr
-
-        # state for instant mode, considering the restarting case
-        if self.mode == 'instant' and not intg.isrestart:
-            self.tout_last -= self.dtout
-
 
     def _eval_acc_exprs(self, intg):
         exprs = []
@@ -159,7 +153,6 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
         if intg.tcurr < self.tstart:
             return
 
-
         # If necessary, run the start-up routines
         if not self._started:
             self._init_accumex(intg)
@@ -167,16 +160,53 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
 
         # See if we are due to write and/or accumulate this step
         dowrite = intg.tcurr - self.tout_last >= self.dtout - self.tol
+        doaccum = intg.nacptsteps % self.nsteps == 0
 
-        if self.mode == 'instant':
+        if dowrite or doaccum:
+            # Evaluate the time averaging expressions
+            currex = self._eval_acc_exprs(intg)
+
+            # Accumulate them; always do this even when just writing
+            for a, p, c in zip(self.accex, self.prevex, currex):
+                a += 0.5*(intg.tcurr - self.prevt)*(p + c)
+
+            # Save the time and solution
+            self.prevt = intg.tcurr
+            self.prevex = currex
+
             if dowrite:
                 comm, rank, root = get_comm_rank_root()
+
+                if self.mode == 'windowed':
+                    accex = self.accex
+                    tstart = self.tout_last
+                else:
+                    for a, c in zip(self.accex, self.caccex):
+                        c += a
+
+                    accex = self.caccex
+                    tstart = self.tstart_actual
+
+                # Normalise the accumulated expressions
+                tavg = [a / (intg.tcurr - tstart) for a in accex]
+
+                # Evaluate any functional expressions
+                if self.fexprs:
+                    funex = self._eval_fun_exprs(intg, tavg)
+                    tavg = [np.hstack([a, f]) for a, f in zip(tavg, funex)]
+
+                # Form the output records to be written to disk
+                data = dict(self._ele_region_data)
+                for (idx, etype, rgn), d in zip(self._ele_regions, tavg):
+                    data[etype] = d.astype(self.fpdtype)
 
                 # If we are the root rank then prepare the metadata
                 if rank == root:
                     stats = Inifile()
-                    stats.set('data', 'prefix', 'snapshot')
+                    stats.set('data', 'prefix', 'tavg')
                     stats.set('data', 'fields', ','.join(self.outfields))
+                    stats.set('tavg', 'tstart', tstart)
+                    stats.set('tavg', 'tend', intg.tcurr)
                     intg.collect_stats(stats)
 
                     metadata = dict(intg.cfgmeta,
@@ -185,19 +215,6 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
                 else:
                     metadata = None
 
-                # Evaluate the instant expressions
-                tint = self._eval_acc_exprs(intg)
-
-                # Evaluate any functional expressions
-                if self.fexprs:
-                    funex = self._eval_fun_exprs(intg, tint)
-                    tint = [np.hstack([a, f]) for a, f in zip(tint, funex)]
-
-                # Form the output records to be written to disk
-                data = dict(self._ele_region_data)
-                for (idx, etype, rgn), d in zip(self._ele_regions, tint):
-                    data[etype] = d.astype(self.fpdtype)
-
                 # Write to disk
                 solnfname = self._writer.write(data, intg.tcurr, metadata)
 
@@ -205,76 +222,8 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
                 self._invoke_postaction(intg=intg, mesh=intg.system.mesh.fname,
                                         soln=solnfname, t=intg.tcurr)
 
-                # Update the last output time
+                # Reset the accumulators
+                for a in self.accex:
+                    a.fill(0)
+
                 self.tout_last = intg.tcurr
-
-
-        else:
-
-            doaccum = intg.nacptsteps % self.nsteps == 0
-
-            if dowrite or doaccum:
-                # Evaluate the time averaging expressions
-                currex = self._eval_acc_exprs(intg)
-
-                # Accumulate them; always do this even when just writing
-                for a, p, c in zip(self.accex, self.prevex, currex):
-                    a += 0.5*(intg.tcurr - self.prevt)*(p + c)
-
-                # Save the time and solution
-                self.prevt = intg.tcurr
-                self.prevex = currex
-
-                if dowrite:
-                    comm, rank, root = get_comm_rank_root()
-
-                    if self.mode == 'windowed':
-                        accex = self.accex
-                        tstart = self.tout_last
-                    else:
-                        for a, c in zip(self.accex, self.caccex):
-                            c += a
-
-                        accex = self.caccex
-                        tstart = self.tstart_actual
-
-                    # Normalise the accumulated expressions
-                    tavg = [a / (intg.tcurr - tstart) for a in accex]
-
-                    # Evaluate any functional expressions
-                    if self.fexprs:
-                        funex = self._eval_fun_exprs(intg, tavg)
-                        tavg = [np.hstack([a, f]) for a, f in zip(tavg, funex)]
-
-                    # Form the output records to be written to disk
-                    data = dict(self._ele_region_data)
-                    for (idx, etype, rgn), d in zip(self._ele_regions, tavg):
-                        data[etype] = d.astype(self.fpdtype)
-
-                    # If we are the root rank then prepare the metadata
-                    if rank == root:
-                        stats = Inifile()
-                        stats.set('data', 'prefix', 'tavg')
-                        stats.set('data', 'fields', ','.join(self.outfields))
-                        stats.set('tavg', 'tstart', tstart)
-                        stats.set('tavg', 'tend', intg.tcurr)
-                        intg.collect_stats(stats)
-
-                        metadata = dict(intg.cfgmeta,
-                                        stats=stats.tostr(),
-                                        mesh_uuid=intg.mesh_uuid)
-                    else:
-                        metadata = None
-
-                    # Write to disk
-                    solnfname = self._writer.write(data, intg.tcurr, metadata)
-
-                    # If a post-action has been registered then invoke it
-                    self._invoke_postaction(intg=intg, mesh=intg.system.mesh.fname,
-                                            soln=solnfname, t=intg.tcurr)
-
-                    # Reset the accumulators
-                    for a in self.accex:
-                        a.fill(0)
-
-                    self.tout_last = intg.tcurr
