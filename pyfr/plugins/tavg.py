@@ -100,8 +100,8 @@ class TavgPlugin(PostactionMixin, RegionMixin, BasePlugin):
             self.caccex = [np.zeros_like(a) for a in self.accex]
             self.tstart_actual = intg.tcurr
 
-        # state for instant mode, considering the restarting case
-        if self.mode == 'instant' and not intg.isrestart:
+        # state for instant mode, always rewrite the starting time step
+        if self.mode == 'instant':
             self.tout_last -= self.dtout
 
 
