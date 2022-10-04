@@ -37,7 +37,7 @@ class BaseAdvectionElements(BaseElements):
         srctplargs = {
             'ndims': self.ndims,
             'nvars': self.nvars,
-            'srcex': self._src_exprs
+            'srcex': self._src_exprs,
         }
 
         # Interpolation from elemental points
@@ -79,11 +79,34 @@ class BaseAdvectionElements(BaseElements):
                 'copy', self._scal_upts_cpy, self.scal_upts[uin]
             )
 
-        kernels['negdivconf'] = lambda fout: self._be.kernel(
-            'negdivconf', tplargs=srctplargs,
-            dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
-            rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts
-        )
+
+
+        """
+        Modification here for the linear solver
+        """
+        if self.linsolver == 'linear':
+            kernels['negdivconflin'] = lambda fout: self._be.kernel(
+                'negdivconf', tplargs=srctplargs,
+                dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
+                rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts,
+                tdivfb=self._base_vect_upts
+            )
+
+        else:
+            kernels['negdivconf'] = lambda fout: self._be.kernel(
+                'negdivconf', tplargs=srctplargs,
+                dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
+                rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts
+            )
+
+        
+
+
+        """
+        Modification here for the linear solver
+        """
+
+
 
         # In-place solution filter
         if self.cfg.getint('soln-filter', 'nsteps', '0'):

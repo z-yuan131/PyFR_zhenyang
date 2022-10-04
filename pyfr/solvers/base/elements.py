@@ -92,6 +92,34 @@ class BaseElements:
         self.scal_upts = interp @ solnmat.reshape(solnb.nupts, -1)
         self.scal_upts = self.scal_upts.reshape(nupts, nvars, neles)
 
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
+    def set_baseflow_from_soln(self, solnmat, cfg):
+        # Recreate the existing solution basis
+        solnb = self.basis.__class__(None, cfg)
+
+        # Form the interpolation operator
+        interp = solnb.ubasis.nodal_basis_at(self.basis.upts)
+
+        # Sizes
+        nupts, neles, nvars = self.nupts, self.neles, self.nvars
+
+        # Apply and reshape
+        self.baseflow_upts = interp @ solnmat.reshape(solnb.nupts, -1)
+        self.baseflow_upts = self.baseflow_upts.reshape(nupts, nvars, neles)
+
+        #raise RuntimeError('check point')
+
+
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
+
+
+
+
     @cached_property
     def plocfpts(self):
         # Construct the physical location operator matrix

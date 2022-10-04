@@ -11,6 +11,7 @@ from pyfr.backends.base import NullKernel
 from pyfr.inifile import Inifile
 from pyfr.shapes import BaseShape
 from pyfr.util import memoize, subclasses
+from pyfr.readers.native import NativeReader
 
 
 class BaseSystem:
@@ -99,11 +100,36 @@ class BaseSystem:
 
             # Process the solution
             for etype, ele in elemap.items():
+                #print(etype)
                 soln = initsoln[f'soln_{etype}_p{rallocs.prank}']
                 ele.set_ics_from_soln(soln, solncfg)
         else:
             for ele in eles:
                 ele.set_ics_from_cfg()
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        # Load baseflow elements if we are on linear solvers
+        self.linsolver = self.cfg.get('solver','solver-type','None')
+        if self.linsolver == 'linear':
+
+
+            # Load baseflow solution and check if calculated on the current mesh
+            bfsoln = NativeReader(self.cfg.get('solver','baseflow-dir'))
+            if mesh['mesh_uuid'] != bfsoln['mesh_uuid']:
+                raise RuntimeError('Invalid baseflow solution for mesh.')
+
+            # Process the baseflow solution
+            for etype, ele in elemap.items():
+                soln = bfsoln[f'soln_{etype}_p{rallocs.prank}']
+                ele.set_baseflow_from_soln(soln, self.cfg)
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+
+
 
         # Allocate these elements on the backend
         for etype, ele in elemap.items():
