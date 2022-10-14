@@ -106,8 +106,8 @@ class BaseElements:
         nupts, neles, nvars = self.nupts, self.neles, self.nvars
 
         # Apply and reshape
-        self.baseflow_upts = interp @ solnmat.reshape(solnb.nupts, -1)
-        self.baseflow_upts = self.baseflow_upts.reshape(nupts, nvars, neles)
+        self.base_scal_upts = interp @ solnmat.reshape(solnb.nupts, -1)
+        self.base_scal_upts = self.base_scal_upts.reshape(nupts, nvars, neles)
 
         #raise RuntimeError('check point')
 
@@ -237,6 +237,32 @@ class BaseElements:
         self.scal_upts = [backend.matrix(self.scal_upts.shape,
                                          self.scal_upts, tags={'align'})
                            for i in range(nscalupts)]
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        if self.cfg.get('solver','solver-type','None') == 'linear':
+            # Allocate required scalar scratch space
+            if 'base_scal_fpts' in sbufs:
+                self._base_scal_fpts = salloc('base_scal_fpts', nfpts)
+            if 'base_scal_qpts' in sbufs:
+                self._base_scal_qpts = salloc('base_scal_qpts', nqpts)
+
+            # Allocate required vector scratch space
+            if 'base_vect_upts' in sbufs:
+                self._base_vect_upts = valloc('base_vect_upts', nupts)
+            if 'base_vect_qpts' in sbufs:
+                self._base_vect_qpts = valloc('base_vect_qpts', nqpts)
+            if 'base_vect_fpts' in sbufs:
+                self._base_vect_fpts = valloc('base_vect_fpts', nfpts)
+
+            # Allocate the storage required by baseflow
+            self.base_scal_upts = [backend.matrix(self.base_scal_upts.shape,
+                                             self.base_scal_upts, tags={'align'})
+                               for i in range(nscalupts)]
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
 
         # Find/allocate space for a solution-sized scalar
         tags = self.scal_upts[0].tags
@@ -449,3 +475,31 @@ class BaseElements:
     def get_ploc_for_inter(self, eidx, fidx):
         fpts_idx = self._srtd_face_fpts[fidx][eidx]
         return self.plocfpts[fpts_idx, eidx]
+
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
+    """ take care of baseflow interface view problem"""
+
+
+    def get_base_scal_fpts_for_inter(self, eidx, fidx):
+        nfp = self.nfacefpts[fidx]
+
+        rmap = self._srtd_face_fpts[fidx][eidx]
+        cmap = (eidx,)*nfp
+
+        return (self._base_scal_fpts.mid,)*nfp, rmap, cmap
+
+    def get_base_vect_fpts_for_inter(self, eidx, fidx):
+        nfp = self.nfacefpts[fidx]
+
+        rmap = self._srtd_face_fpts[fidx][eidx]
+        cmap = (eidx,)*nfp
+        rstri = (self.nfpts,)*nfp
+
+        return (self._base_vect_fpts.mid,)*nfp, rmap, cmap, rstri
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """

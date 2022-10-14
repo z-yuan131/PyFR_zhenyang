@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from pyfr.solvers.baseadvec import (BaseAdvectionIntInters,
-                                    BaseAdvectionMPIInters,
-                                    BaseAdvectionBCInters)
+from pyfr.solvers.linadvec import (LinearAdvectionIntInters,
+                                    LinearAdvectionMPIInters,
+                                    LinearAdvectionBCInters)
 
 
 class LinearEulerIntInters(LinearAdvectionIntInters):

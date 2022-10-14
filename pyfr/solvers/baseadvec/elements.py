@@ -22,9 +22,16 @@ class BaseAdvectionElements(BaseElements):
         kernels = self.kernels
 
         # Register pointwise kernels with the backend
-        self._be.pointwise.register(
-            'pyfr.solvers.baseadvec.kernels.negdivconf'
-        )
+        linsolver = self.cfg.get('solver','solver-type','None')
+        if linsolver == 'linear':
+            self._be.pointwise.register(
+                'pyfr.solvers.baseadvec.kernels.negdivconflin'
+            )
+        else:
+            self._be.pointwise.register(
+                'pyfr.solvers.baseadvec.kernels.negdivconf'
+            )
+
 
         # What anti-aliasing options we're running with
         fluxaa = 'flux' in self.antialias
@@ -80,13 +87,21 @@ class BaseAdvectionElements(BaseElements):
             )
 
 
-
         """
         Modification here for the linear solver
         """
-        if self.linsolver == 'linear':
+        if linsolver == 'linear':
+
+            """
+            Problems here:
+            for calculating everything, we need scal_upts[uin](u'), scal_upts[fout](du'/dx)
+            and also base_vect_upts(dub/dx)
+            """
+
+
+
             kernels['negdivconflin'] = lambda fout: self._be.kernel(
-                'negdivconf', tplargs=srctplargs,
+                'negdivconflin', tplargs=srctplargs,
                 dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
                 rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts,
                 tdivfb=self._base_vect_upts
@@ -99,7 +114,7 @@ class BaseAdvectionElements(BaseElements):
                 rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts
             )
 
-        
+
 
 
         """

@@ -7,7 +7,7 @@ from pyfr.solvers.lineuler.inters import (LinearEulerIntInters, LinearEulerMPIIn
 
 
 class LinearEulerSystem(LinearAdvectionSystem):
-    name = 'lineuler'
+    name = 'linear-euler'
 
     elementscls = LinearEulerElements
     intinterscls = LinearEulerIntInters

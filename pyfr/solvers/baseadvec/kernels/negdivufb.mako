@@ -12,7 +12,7 @@
 
     f[0] = 0;
     f[${nvars - 1}] = 0;
-% for i,j in range(ndims):
+% for i,j in pyfr.ndrange(ndims):
     f[${i+1}] += s[0]*sb[${j+1}]*divsb[${i}][${j}] + s[${j+1}]*divsb[${i}][${j}];
 % endfor
 

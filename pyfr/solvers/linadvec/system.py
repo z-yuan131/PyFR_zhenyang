@@ -29,7 +29,7 @@ class LinearAdvectionSystem(BaseAdvectionSystem):
         kdeps = k['eles/copy_fpts'] or k['eles/disub']
         g1.add_all(k['iint/con_u'], deps=kdeps)
         g1.add_all(k['bcint/con_u'], deps=kdeps)
-
+        
         # Compute the transformed gradient of the partially corrected solution
         g1.add_all(k['eles/tgradpcoru_upts'])
         g1.commit()

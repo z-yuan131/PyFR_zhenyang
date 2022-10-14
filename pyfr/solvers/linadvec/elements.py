@@ -7,10 +7,12 @@ from pyfr.solvers.baseadvec import BaseAdvectionElements
 class LinearAdvectionElements(BaseAdvectionElements):
     @property
     def _scratch_bufs(self):
-        bufs = {'scal_fpts', 'vect_fpts', 'vect_upts'}
+        bufs = {'scal_fpts', 'vect_fpts', 'vect_upts',
+                'base_scal_fpts', 'base_vect_fpts', 'base_vect_upts'}
 
         if 'flux' in self.antialias:
             bufs |= {'scal_qpts', 'vect_qpts'}
+            bufs |= {'base_scal_qpts', 'base_vect_qpts'}
 
         if self._soln_in_src_exprs:
             bufs |= {'scal_upts_cpy'}
@@ -36,7 +38,7 @@ class LinearAdvectionElements(BaseAdvectionElements):
 
         # Interpolation from elemental points
         kernels['disub'] = lambda uin: self._be.kernel(
-            'mul', self.opmat('M0'), self.scal_upts[uin],
+            'mul', self.opmat('M0'), self.base_scal_upts[uin],
             out=self._scal_fpts
         )
 

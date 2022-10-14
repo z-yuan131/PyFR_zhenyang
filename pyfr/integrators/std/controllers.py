@@ -73,6 +73,19 @@ class StdNoneController(BaseStdController):
         if t < self.tcurr:
             raise ValueError('Advance time is in the past')
 
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        raise RuntimeError('check point')
+        # Calculate baseflow gradients
+        if self.linsolver == 'linear':
+            self.system.compute_grads(self.tcurr, self._idxcurr)
+
+        raise ValueError('Zhenyang check point')
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+
         while self.tcurr < t:
             # Decide on the time step
             dt = max(min(t - self.tcurr, self._dt), self.dtmin)

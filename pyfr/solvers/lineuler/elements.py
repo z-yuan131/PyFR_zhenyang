@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from pyfr.solvers.baseadvec import BaseAdvectionElements
+from pyfr.solvers.linadvec import LinearAdvectionElements
 
 
 class BaseFluidElements:
@@ -64,7 +64,7 @@ class LinearEulerElements(BaseFluidElements, LinearAdvectionElements):
 
         # Template parameters for the flux Kernels
         tplargs = {
-            'ndims': slef.ndims,
+            'ndims': self.ndims,
             'nvars': self.nvars,
             'nverts': len(self.basis.linspts),
             'c': self.cfg.items_as('constants', float),

@@ -27,6 +27,7 @@ class DottedTemplateLookup(TemplateLookup):
 
         # Attempt to load the template
         src = pkgutil.get_data(pkg, f'{basename}.mako')
+        print(basename, name)
         if not src:
             raise RuntimeError(f'Template "{name}" not found')
 

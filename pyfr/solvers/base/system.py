@@ -111,8 +111,8 @@ class BaseSystem:
         MODIFICATION FOR LINEAR SOLVER
         """
         # Load baseflow elements if we are on linear solvers
-        self.linsolver = self.cfg.get('solver','solver-type','None')
-        if self.linsolver == 'linear':
+        linsolver = self.cfg.get('solver','solver-type','None')
+        if linsolver == 'linear':
 
 
             # Load baseflow solution and check if calculated on the current mesh
@@ -123,7 +123,8 @@ class BaseSystem:
             # Process the baseflow solution
             for etype, ele in elemap.items():
                 soln = bfsoln[f'soln_{etype}_p{rallocs.prank}']
-                ele.set_baseflow_from_soln(soln, self.cfg)
+                solncfg = Inifile(bfsoln['config'])
+                ele.set_baseflow_from_soln(soln, solncfg)
 
         """
         MODIFICATION FOR LINEAR SOLVER
@@ -295,6 +296,22 @@ class BaseSystem:
 
         for graph in self._compute_grads_graph(uinbank):
             self.backend.run_graph(graph)
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
+    def _compute_baseflow_grads_graph(self, t, uinbank):
+        raise NotImplementedError(f'Solver "{self.name}" does not compute '
+                                  'corrected gradients of the baseflow solution')
+
+    def compute_baseflow_grads(self, t, uinbank):
+        self._prepare_kernels(t, uinbank, None)
+
+        for graph in self._compute_baseflow_grads_graph(uinbank):
+            self.backend.run_graph(graph)
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
 
     def filt(self, uinoutbank):
         kkey = ('eles/filter_soln', uinoutbank, None)

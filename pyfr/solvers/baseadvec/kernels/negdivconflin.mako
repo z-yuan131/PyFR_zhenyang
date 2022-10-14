@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 <%inherit file='base'/>
 <%namespace module='pyfr.backends.base.makoutil' name='pyfr'/>
+<%include file='pyfr.solvers.baseadvec.kernels.negdivufb'/>
 
-<%pyfr:kernel name='negdivconf' ndim='2'
+<%pyfr:kernel name='negdivconflin' ndim='2'
               t='scalar fpdtype_t'
               tdivtconf='inout fpdtype_t[${str(nvars)}]'
               ploc='in fpdtype_t[${str(ndims)}]'

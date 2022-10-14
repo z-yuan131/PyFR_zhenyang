@@ -6,15 +6,27 @@ from pyfr.solvers.baseadvec import (BaseAdvectionIntInters,
 
 class LinearAdvectionIntInters(BaseAdvectionIntInters):
     def __init__(self, be, lhs, rhs, elemap, cfg):
-        super().__init__(self, be, lhs, rhs, elemap, cfg)
+        super().__init__(be, lhs, rhs, elemap, cfg)
+
+        # Generate the left and right hand side view matrices
+        self._base_scal_lhs = self._scal_view(lhs, 'get_base_scal_fpts_for_inter')
+        self._base_scal_rhs = self._scal_view(rhs, 'get_base_scal_fpts_for_inter')
 
         # Generate the additional view matrices
-        self._vect_lhs = self._vect_view(lhs, 'get_vect_fpts_for_inter')
-        self._vect_rhs = self._vect_view(rhs, 'get_vect_fpts_for_inter')
+        self._base_vect_lhs = self._vect_view(lhs, 'get_base_vect_fpts_for_inter')
+        self._base_vect_rhs = self._vect_view(rhs, 'get_base_vect_fpts_for_inter')
 
         # Additional kernel constants
         self.c |= cfg.items_as('solver-interfaces', float)
 
+        # Common solution at our inner interface
+        self.kernels['con_u'] = lambda: be.kernel(
+            'intconu', tplargs=self._tplargs, dims=[self.ninterfpts],
+            ulin=self._base_scal_lhs, urin=self._base_scal_rhs,
+            ulout=self._base_vect_lhs, urout=self._base_vect_rhs
+        )
+
+    """
     def _gen_perm(self, lhs, rhs):
         # In the special case of β = -0.5 it is better to sort by the
         # RHS interface; otherwise we simply opt for the LHS
@@ -22,10 +34,10 @@ class LinearAdvectionIntInters(BaseAdvectionIntInters):
         side = lhs if beta != -0.5 else rhs
 
         # Compute the relevant permutation
-        self._perm = self._get_perm_for_view(side, 'get_scal_fpts_for_inter')
+        self._perm = self._get_perm_for_view(side, 'get_base_scal_fpts_for_inter')
+    """
 
-
-class LinearAdvectionDiffusionMPIInters(BaseAdvectionMPIInters):
+class LinearAdvectionMPIInters(BaseAdvectionMPIInters):
     def __init__(self, be, lhs, rhsrank, rallocs, elemap, cfg):
         super().__init__(be, lhs, rhsrank, rallocs, elemap, cfg)
 
@@ -33,8 +45,8 @@ class LinearAdvectionDiffusionMPIInters(BaseAdvectionMPIInters):
         rhsprank = rallocs.mprankmap[rhsrank]
 
         # Generate second set of view matrices
-        self._vect_lhs = self._vect_xchg_view(lhs, 'get_vect_fpts_for_inter')
-        self._vect_rhs = be.xchg_matrix_for_view(self._vect_lhs)
+        self._base_vect_lhs = self._vect_xchg_view(lhs, 'get_base_vect_fpts_for_inter')
+        self._base_vect_rhs = be.xchg_matrix_for_view(self._vect_lhs)
 
         # Additional kernel constants
         self.c |= cfg.items_as('solver-interfaces', float)
@@ -57,28 +69,46 @@ class LinearAdvectionDiffusionMPIInters(BaseAdvectionMPIInters):
         # If we need to send our gradients to the RHS
         if self.c['ldg-beta'] != -0.5:
             self.kernels['vect_fpts_pack'] = lambda: be.kernel(
-                'pack', self._vect_lhs
+                'pack', self._base_vect_lhs
             )
-            self.mpireqs['vect_fpts_send'] = lambda: self._vect_lhs.sendreq(
+            self.mpireqs['vect_fpts_send'] = lambda: self._base_vect_lhs.sendreq(
                 self._rhsrank, vect_fpts_tag
             )
 
         # If we need to recv gradients from the RHS
         if self.c['ldg-beta'] != 0.5:
-            self.mpireqs['vect_fpts_recv'] = lambda: self._vect_rhs.recvreq(
+            self.mpireqs['vect_fpts_recv'] = lambda: self._base_vect_rhs.recvreq(
                 self._rhsrank, vect_fpts_tag
             )
             self.kernels['vect_fpts_unpack'] = lambda: be.kernel(
-                'unpack', self._vect_rhs
+                'unpack', self._base_vect_rhs
             )
 
+        # Common solution at our MPI interface
+        self.kernels['con_u'] = lambda: be.kernel(
+            'mpiconu', tplargs=self._tplargs, dims=[self.ninterfpts],
+            ulin=self._base_scal_lhs, urin=self._base_scal_rhs,
+            ulout=self._base_vect_lhs
+        )
 
-class LinearAdvectionDiffusionBCInters(BaseAdvectionBCInters):
+
+class LinearAdvectionBCInters(BaseAdvectionBCInters):
     def __init__(self, be, lhs, elemap, cfgsect, cfg):
         super().__init__(be, lhs, elemap, cfgsect, cfg)
 
+        # Generate the left and right hand side view matrices
+        self._base_scal_lhs = self._scal_view(lhs, 'get_base_scal_fpts_for_inter')
+
         # Additional view matrices
-        self._vect_lhs = self._vect_view(lhs, 'get_vect_fpts_for_inter')
+        self._base_vect_lhs = self._vect_view(lhs, 'get_base_vect_fpts_for_inter')
 
         # Additional kernel constants
         self.c |= cfg.items_as('solver-interfaces', float)
+
+        # Common solution at our boundary interface
+        self.kernels['con_u'] = lambda: be.kernel(
+            'bcconu', tplargs=self._tplargs, dims=[self.ninterfpts],
+            extrns=self._external_args, ulin=self._base_scal_lhs,
+            ulout=self._base_vect_lhs, nlin=self._norm_pnorm_lhs,
+            **self._external_vals
+        )
