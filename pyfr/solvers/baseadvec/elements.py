@@ -25,6 +25,9 @@ class BaseAdvectionElements(BaseElements):
         linsolver = self.cfg.get('solver','solver-type','None')
         if linsolver == 'linear':
             self._be.pointwise.register(
+                'pyfr.solvers.baseadvec.kernels.cu'
+            )
+            self._be.pointwise.register(
                 'pyfr.solvers.baseadvec.kernels.negdivconflin'
             )
         else:
@@ -81,7 +84,8 @@ class BaseAdvectionElements(BaseElements):
         plocupts = self.ploc_at('upts') if plocsrc else None
         solnupts = self._scal_upts_cpy if solnsrc else None
 
-        if solnsrc:
+        #if solnsrc:
+        if solnsrc or linsolver == 'linear':
             kernels['copy_soln'] = lambda uin: self._be.kernel(
                 'copy', self._scal_upts_cpy, self.scal_upts[uin]
             )
@@ -97,14 +101,19 @@ class BaseAdvectionElements(BaseElements):
             for calculating everything, we need scal_upts[uin](u'), scal_upts[fout](du'/dx)
             and also base_vect_upts(dub/dx)
             """
-
+            # First creat a kernel to calculate C@U
+            kernels['cu'] = lambda uin: self._be.kernel(
+                'cu', tplargs=srctplargs,
+                dims=[self.nupts, self.neles], ub=self.base_scal_upts[uin],
+                u=solnupts, divub=self._base_vect_upts, cu=self._base_cu_upts
+            )
 
 
             kernels['negdivconflin'] = lambda fout: self._be.kernel(
                 'negdivconflin', tplargs=srctplargs,
                 dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
                 rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts,
-                tdivfb=self._base_vect_upts
+                cu=self._base_cu_upts
             )
 
         else:

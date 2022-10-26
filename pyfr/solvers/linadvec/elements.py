@@ -8,14 +8,17 @@ class LinearAdvectionElements(BaseAdvectionElements):
     @property
     def _scratch_bufs(self):
         bufs = {'scal_fpts', 'vect_fpts', 'vect_upts',
-                'base_scal_fpts', 'base_vect_fpts', 'base_vect_upts'}
+                'base_scal_fpts', 'base_vect_fpts', 'base_vect_upts',
+                'base_cu_upts'}
 
         if 'flux' in self.antialias:
             bufs |= {'scal_qpts', 'vect_qpts'}
             bufs |= {'base_scal_qpts', 'base_vect_qpts'}
 
-        if self._soln_in_src_exprs:
+        if self._soln_in_src_exprs  or self.cfg.get('solver','solver-type','None'):
             bufs |= {'scal_upts_cpy'}
+
+        print(bufs)
 
         return bufs
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 <%inherit file='base'/>
 <%namespace module='pyfr.backends.base.makoutil' name='pyfr'/>
-<%include file='pyfr.solvers.baseadvec.kernels.negdivufb'/>
+// <%include file='pyfr.solvers.baseadvec.kernels.negdivufb'/>
 
 <%pyfr:kernel name='negdivconflin' ndim='2'
               t='scalar fpdtype_t'
@@ -9,15 +9,16 @@
               ploc='in fpdtype_t[${str(ndims)}]'
               u='in fpdtype_t[${str(nvars)}]'
               rcpdjac='in fpdtype_t'
-              tdivfb='in fpdtype_t[${str(ndims)}][${str(ndims)}]'>
+              cu='in fpdtype_t[${str(ndims)}]'
+              >
 
     // Compute the C@U term in the formula
-    fpdtype_t ftemp[${nvars}];
-    ${pyfr.expand('utdivtconf', 'u', 'tdivfb', 'ftemp')};
+    // fpdtype_t ftemp[${nvars}];
+    // ${pyfr.expand('utdivtconf', 'u', 'ub', 'divub', 'ftemp')};
 
 
     % for i, ex in enumerate(srcex):
-        tdivtconf[${i}] = -rcpdjac*tdivtconf[${i}] + ${ex} - ftemp[${i}];
+        tdivtconf[${i}] = -rcpdjac*tdivtconf[${i}] + ${ex} - cu[${i}];
     % endfor
 
 

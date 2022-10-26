@@ -251,6 +251,9 @@ class BaseElements:
             # Allocate required vector scratch space
             if 'base_vect_upts' in sbufs:
                 self._base_vect_upts = valloc('base_vect_upts', nupts)
+            # This array is intended for c@u, better to change its name
+            if 'base_cu_upts' in sbufs:
+                self._base_cu_upts = valloc('base_cu_upts', nupts)
             if 'base_vect_qpts' in sbufs:
                 self._base_vect_qpts = valloc('base_vect_qpts', nqpts)
             if 'base_vect_fpts' in sbufs:
