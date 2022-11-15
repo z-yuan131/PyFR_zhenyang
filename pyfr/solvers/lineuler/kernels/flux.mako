@@ -9,14 +9,12 @@
     fpdtype_t vb[${ndims}];
 % for i in range(ndims):
     rhovb[${i}] = sb[${i + 1}];
-    vb[${i}] = invrhob*sb[${i}]
+    vb[${i}] = invrhob*sb[${i}];
 % endfor
 
     // Averaged pressure
+    fpdtype_t pb;
     pb = ${c['gamma'] - 1}*(Eb - 0.5*invrhob*${pyfr.dot('rhovb[{i}]', i=ndims)});
-
-
-
 
 
     fpdtype_t invrho = 1.0/s[0], E = s[${nvars - 1}];

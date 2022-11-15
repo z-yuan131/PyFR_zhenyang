@@ -300,14 +300,14 @@ class BaseSystem:
     """
     MODIFICATION FOR LINEAR SOLVER
     """
-    def _compute_baseflow_grads_graph(self, t, uinbank):
+    def _base_grads_graph(self, t, uinbank):
         raise NotImplementedError(f'Solver "{self.name}" does not compute '
                                   'corrected gradients of the baseflow solution')
 
     def compute_baseflow_grads(self, t, uinbank):
         self._prepare_kernels(t, uinbank, None)
 
-        for graph in self._compute_baseflow_grads_graph(uinbank):
+        for graph in self._base_grads_graph(uinbank):
             self.backend.run_graph(graph)
     """
     MODIFICATION FOR LINEAR SOLVER

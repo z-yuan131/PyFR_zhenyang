@@ -83,6 +83,7 @@ class BaseAdvectionElements(BaseElements):
         # Transformed to physical divergence kernel + source term
         plocupts = self.ploc_at('upts') if plocsrc else None
         solnupts = self._scal_upts_cpy if solnsrc else None
+        solnupts = self._scal_upts_cpy if linsolver else None
 
         #if solnsrc:
         if solnsrc or linsolver == 'linear':
@@ -95,12 +96,15 @@ class BaseAdvectionElements(BaseElements):
         Modification here for the linear solver
         """
         if linsolver == 'linear':
+            """
+            kernels['cu'] = lambda: self._be.kernel(
+                'cu', tplargs=srctplargs,
+                dims=[self.nupts, self.neles],
+                u=solnupts, cu=self._base_cu_upts
+            )
+            """
 
-            """
-            Problems here:
-            for calculating everything, we need scal_upts[uin](u'), scal_upts[fout](du'/dx)
-            and also base_vect_upts(dub/dx)
-            """
+
             # First creat a kernel to calculate C@U
             kernels['cu'] = lambda uin: self._be.kernel(
                 'cu', tplargs=srctplargs,

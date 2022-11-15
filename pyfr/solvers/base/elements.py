@@ -109,7 +109,7 @@ class BaseElements:
         self.base_scal_upts = interp @ solnmat.reshape(solnb.nupts, -1)
         self.base_scal_upts = self.base_scal_upts.reshape(nupts, nvars, neles)
 
-        #raise RuntimeError('check point')
+        #raise RuntimeError('read baseflow check point')
 
 
 

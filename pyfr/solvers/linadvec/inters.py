@@ -4,9 +4,22 @@ from pyfr.solvers.baseadvec import (BaseAdvectionIntInters,
                                     BaseAdvectionMPIInters,
                                     BaseAdvectionBCInters)
 
-class LinearAdvectionIntInters(BaseAdvectionIntInters):
+class TplargsMixin:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        rsolver = self.cfg.get('solver-interfaces', 'riemann-solver')
+        #visc_corr = self.cfg.get('solver', 'viscosity-correction')
+        #shock_capturing = self.cfg.get('solver', 'shock-capturing')
+        self._tplargs = dict(ndims=self.ndims, nvars=self.nvars,
+                             rsolver=rsolver,  c=self.c)
+
+
+class LinearAdvectionIntInters(TplargsMixin, BaseAdvectionIntInters):
     def __init__(self, be, lhs, rhs, elemap, cfg):
         super().__init__(be, lhs, rhs, elemap, cfg)
+
+        be.pointwise.register('pyfr.solvers.linadvec.kernels.intconu')
 
         # Generate the left and right hand side view matrices
         self._base_scal_lhs = self._scal_view(lhs, 'get_base_scal_fpts_for_inter')
@@ -37,9 +50,11 @@ class LinearAdvectionIntInters(BaseAdvectionIntInters):
         self._perm = self._get_perm_for_view(side, 'get_base_scal_fpts_for_inter')
     """
 
-class LinearAdvectionMPIInters(BaseAdvectionMPIInters):
+class LinearAdvectionMPIInters(TplargsMixin, BaseAdvectionMPIInters):
     def __init__(self, be, lhs, rhsrank, rallocs, elemap, cfg):
         super().__init__(be, lhs, rhsrank, rallocs, elemap, cfg)
+
+        be.pointwise.register('pyfr.solvers.linadvec.kernels.mpiconu')
 
         lhsprank = rallocs.prank
         rhsprank = rallocs.mprankmap[rhsrank]
@@ -92,9 +107,11 @@ class LinearAdvectionMPIInters(BaseAdvectionMPIInters):
         )
 
 
-class LinearAdvectionBCInters(BaseAdvectionBCInters):
+class LinearAdvectionBCInters(TplargsMixin, BaseAdvectionBCInters):
     def __init__(self, be, lhs, elemap, cfgsect, cfg):
         super().__init__(be, lhs, elemap, cfgsect, cfg)
+
+        be.pointwise.register('pyfr.solvers.navstokes.kernels.bcconu')
 
         # Generate the left and right hand side view matrices
         self._base_scal_lhs = self._scal_view(lhs, 'get_base_scal_fpts_for_inter')
@@ -106,9 +123,11 @@ class LinearAdvectionBCInters(BaseAdvectionBCInters):
         self.c |= cfg.items_as('solver-interfaces', float)
 
         # Common solution at our boundary interface
+        """
         self.kernels['con_u'] = lambda: be.kernel(
             'bcconu', tplargs=self._tplargs, dims=[self.ninterfpts],
             extrns=self._external_args, ulin=self._base_scal_lhs,
             ulout=self._base_vect_lhs, nlin=self._norm_pnorm_lhs,
             **self._external_vals
         )
+        """

@@ -21,7 +21,7 @@
 
 
 % for i in range(nvars):
-    cu[${i+1}] = 1;
+    cu[${i+1}] = 1
 % endfor
 
 

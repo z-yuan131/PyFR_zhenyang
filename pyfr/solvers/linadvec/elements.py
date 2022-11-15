@@ -18,7 +18,7 @@ class LinearAdvectionElements(BaseAdvectionElements):
         if self._soln_in_src_exprs  or self.cfg.get('solver','solver-type','None'):
             bufs |= {'scal_upts_cpy'}
 
-        print(bufs)
+        #print(bufs)
 
         return bufs
 
@@ -67,7 +67,7 @@ class LinearAdvectionElements(BaseAdvectionElements):
             'nverts': len(self.basis.linspts),
             'jac_exprs': self.basis.jac_exprs
         }
-
+        
         if 'curved' in regions:
             kernels['gradcoru_upts_curved'] = lambda: self._be.kernel(
                 'gradcoru', tplargs=tplargs,
@@ -76,6 +76,7 @@ class LinearAdvectionElements(BaseAdvectionElements):
                 smats=self.curved_smat_at('upts'),
                 rcpdjac=self.rcpdjac_at('upts', 'curved')
             )
+
 
         if 'linear' in regions:
             kernels['gradcoru_upts_linear'] = lambda: self._be.kernel(

@@ -15,6 +15,15 @@ class BaseStdController(BaseStdIntegrator):
         # Solution filtering frequency
         self._fnsteps = self.cfg.getint('soln-filter', 'nsteps', '0')
 
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        # Get solver info
+        self.linsolver = self.cfg.get('solver','solver-type','None')
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+
         # Stats on the most recent step
         self.stepinfo = []
 
@@ -76,12 +85,11 @@ class StdNoneController(BaseStdController):
         """
         MODIFICATION FOR LINEAR SOLVER
         """
-        raise RuntimeError('check point')
         # Calculate baseflow gradients
         if self.linsolver == 'linear':
-            self.system.compute_grads(self.tcurr, self._idxcurr)
+            self.system.compute_baseflow_grads(self.tcurr, self._idxcurr)
 
-        raise ValueError('Zhenyang check point')
+
         """
         MODIFICATION FOR LINEAR SOLVER
         """
@@ -96,6 +104,13 @@ class StdNoneController(BaseStdController):
             # We are not adaptive, so accept every step
             self._accept_step(dt, idxcurr)
 
+            """
+            MODIFICATION FOR LINEAR SOLVER
+            """
+            raise ValueError('Zhenyang check point')
+            """
+            MODIFICATION FOR LINEAR SOLVER
+            """
 
 class StdPIController(BaseStdController):
     controller_name = 'pi'
