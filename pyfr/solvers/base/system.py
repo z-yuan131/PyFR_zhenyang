@@ -114,17 +114,24 @@ class BaseSystem:
         linsolver = self.cfg.get('solver','solver-type','None')
         if linsolver == 'linear':
 
+            if initsoln:
 
-            # Load baseflow solution and check if calculated on the current mesh
-            bfsoln = NativeReader(self.cfg.get('solver','baseflow-dir'))
-            if mesh['mesh_uuid'] != bfsoln['mesh_uuid']:
-                raise RuntimeError('Invalid baseflow solution for mesh.')
+                # Load baseflow solution and check if calculated on the current mesh
+                bfsoln = NativeReader(self.cfg.get('solver','baseflow-dir'))
+                if mesh['mesh_uuid'] != bfsoln['mesh_uuid']:
+                    raise RuntimeError('Invalid baseflow solution for mesh.')
 
-            # Process the baseflow solution
-            for etype, ele in elemap.items():
-                soln = bfsoln[f'soln_{etype}_p{rallocs.prank}']
-                solncfg = Inifile(bfsoln['config'])
-                ele.set_baseflow_from_soln(soln, solncfg)
+                # Process the baseflow solution
+                for etype, ele in elemap.items():
+                    soln = bfsoln[f'soln_{etype}_p{rallocs.prank}']
+                    solncfg = Inifile(bfsoln['config'])
+                    ele.set_baseflow_from_soln(soln, solncfg)
+
+            else:
+                # Purely for tests
+                for ele in eles:
+                    ele.set_baseflow_from_cfg()
+
 
         """
         MODIFICATION FOR LINEAR SOLVER

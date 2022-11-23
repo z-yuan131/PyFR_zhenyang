@@ -107,7 +107,7 @@ class StdNoneController(BaseStdController):
             """
             MODIFICATION FOR LINEAR SOLVER
             """
-            raise ValueError('Zhenyang check point')
+            #raise ValueError('Zhenyang check point')
             """
             MODIFICATION FOR LINEAR SOLVER
             """

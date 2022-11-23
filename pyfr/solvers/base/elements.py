@@ -109,9 +109,34 @@ class BaseElements:
         self.base_scal_upts = interp @ solnmat.reshape(solnb.nupts, -1)
         self.base_scal_upts = self.base_scal_upts.reshape(nupts, nvars, neles)
 
+        #print(self.base_scal_upts.shape)
+        """con_to_pri could be added here"""
+
         #raise RuntimeError('read baseflow check point')
 
+    def set_baseflow_from_cfg(self):
 
+        # Bring simulation constants into scope
+        vars = self.cfg.items_as('constants', float)
+
+        if any(d in vars for d in 'xyz'):
+            raise ValueError('Invalid constants (x, y, or z) in config file')
+
+        # Get the physical location of each solution point
+        coords = self.ploc_at_np('upts').swapaxes(0, 1)
+        vars |= dict(zip('xyz', coords))
+
+        # Evaluate the ICs from the config file
+        ics = [npeval(self.cfg.getexpr('baseflow-ics', dv), vars)
+               for dv in self.privarmap[self.ndims]]
+
+        # Allocate
+        self.base_scal_upts = np.empty((self.nupts, self.nvars, self.neles))
+
+
+        # We use primitive form in baseflow
+        for i, v in enumerate(ics):
+            self.base_scal_upts[:, i, :] = v
 
     """
     MODIFICATION FOR LINEAR SOLVER

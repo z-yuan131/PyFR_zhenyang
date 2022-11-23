@@ -113,6 +113,9 @@ class LinearAdvectionBCInters(TplargsMixin, BaseAdvectionBCInters):
 
         be.pointwise.register('pyfr.solvers.navstokes.kernels.bcconu')
 
+        # Additional BC specific template arguments
+        self._tplargs['bctype'] = self.type
+
         # Generate the left and right hand side view matrices
         self._base_scal_lhs = self._scal_view(lhs, 'get_base_scal_fpts_for_inter')
 
@@ -123,11 +126,9 @@ class LinearAdvectionBCInters(TplargsMixin, BaseAdvectionBCInters):
         self.c |= cfg.items_as('solver-interfaces', float)
 
         # Common solution at our boundary interface
-        """
         self.kernels['con_u'] = lambda: be.kernel(
             'bcconu', tplargs=self._tplargs, dims=[self.ninterfpts],
             extrns=self._external_args, ulin=self._base_scal_lhs,
             ulout=self._base_vect_lhs, nlin=self._norm_pnorm_lhs,
             **self._external_vals
         )
-        """

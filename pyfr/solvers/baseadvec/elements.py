@@ -48,6 +48,7 @@ class BaseAdvectionElements(BaseElements):
             'ndims': self.ndims,
             'nvars': self.nvars,
             'srcex': self._src_exprs,
+            'c': self.cfg.items_as('constants', float),
         }
 
         # Interpolation from elemental points
