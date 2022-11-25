@@ -111,6 +111,9 @@ class BaseElements:
 
         #print(self.base_scal_upts.shape)
         """con_to_pri could be added here"""
+        for i, v in enumerate(self.pri_to_con([self.base_scal_upts], self.cfg)):
+            self.base_scal_upts[:, i, :] = v
+
 
         #raise RuntimeError('read baseflow check point')
 
@@ -138,9 +141,35 @@ class BaseElements:
         for i, v in enumerate(ics):
             self.base_scal_upts[:, i, :] = v
 
+
+
+    def set_ics_from_cfg_lin(self):
+        # Bring simulation constants into scope
+        vars = self.cfg.items_as('constants', float)
+
+        if any(d in vars for d in 'xyz'):
+            raise ValueError('Invalid constants (x, y, or z) in config file')
+
+        # Get the physical location of each solution point
+        coords = self.ploc_at_np('upts').swapaxes(0, 1)
+        vars |= dict(zip('xyz', coords))
+
+        # Evaluate the ICs from the config file
+        ics = [npeval(self.cfg.getexpr('soln-ics', dv), vars)
+               for dv in self.privarmap[self.ndims]]
+
+        # Allocate
+        self.scal_upts = np.empty((self.nupts, self.nvars, self.neles))
+
+        # Convert from primitive to conservative form
+        ics = self.pri_to_con(ics, self.base_scal_upts[:, 0, :])
+        for i, v in enumerate(ics):
+            self.scal_upts[:, i, :] = v
+
     """
     MODIFICATION FOR LINEAR SOLVER
     """
+
 
 
 
@@ -288,6 +317,7 @@ class BaseElements:
             self.base_scal_upts = [backend.matrix(self.base_scal_upts.shape,
                                              self.base_scal_upts, tags={'align'})
                                for i in range(nscalupts)]
+
         """
         MODIFICATION FOR LINEAR SOLVER
         """

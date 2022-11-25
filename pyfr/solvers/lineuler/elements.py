@@ -9,8 +9,8 @@ class BaseFluidElements:
     privarmap = {2: ['rho', 'u', 'v', 'p'],
                  3: ['rho', 'u', 'v', 'w', 'p']}
 
-    convarmap = {2: ['rho', 'rhou', 'rhov', 'E'],
-                 3: ['rho', 'rhou', 'rhov', 'rhow', 'E']}
+    convarmap = {2: ['rho', 'rhou', 'rhov', 'p'],
+                 3: ['rho', 'rhou', 'rhov', 'rhow', 'p']}
 
     dualcoeffs = convarmap
 
@@ -24,17 +24,14 @@ class BaseFluidElements:
     }
 
     @staticmethod
-    def pri_to_con(pris, cfg):
+    def pri_to_con(pris, baserho):
+        print(pris[0].shape, baserho.shape)
         rho, p = pris[0], pris[-1]
 
-        # Multiply velocity components by rho
-        rhovs = [rho*c for c in pris[1:-1]]
+        # Multiply velocity components by rho from baseflow
+        baserhovs = [baserho*c for c in pris[1:-1]]
 
-        # Compute the energy
-        gamma = cfg.getfloat('constants', 'gamma')
-        E = p/(gamma - 1) + 0.5*rho*sum(c*c for c in pris[1:-1])
-
-        return [rho] + rhovs + [E]
+        return [rho] + baserhovs + [p]
 
     @staticmethod
     def con_to_pri(cons, cfg):

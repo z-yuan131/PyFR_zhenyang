@@ -84,6 +84,7 @@ class BaseSystem:
 
         eles = list(elemap.values())
 
+        """
         # Set the initial conditions
         if initsoln:
             # Load the config and stats files from the solution
@@ -106,7 +107,7 @@ class BaseSystem:
         else:
             for ele in eles:
                 ele.set_ics_from_cfg()
-
+        """
         """
         MODIFICATION FOR LINEAR SOLVER
         """
@@ -114,10 +115,11 @@ class BaseSystem:
         linsolver = self.cfg.get('solver','solver-type','None')
         if linsolver == 'linear':
 
-            if initsoln:
+            bfdir = self.cfg.get('solver','baseflow-dir','None')
+            if bfdir != 'None':
 
                 # Load baseflow solution and check if calculated on the current mesh
-                bfsoln = NativeReader(self.cfg.get('solver','baseflow-dir'))
+                bfsoln = NativeReader(bfdir)
                 if mesh['mesh_uuid'] != bfsoln['mesh_uuid']:
                     raise RuntimeError('Invalid baseflow solution for mesh.')
 
@@ -131,6 +133,51 @@ class BaseSystem:
                 # Purely for tests
                 for ele in eles:
                     ele.set_baseflow_from_cfg()
+
+            if initsoln:
+                # Load the config and stats files from the solution
+                solncfg = Inifile(initsoln['config'])
+                solnsts = Inifile(initsoln['stats'])
+
+                # Get the names of the conserved variables (fields)
+                solnfields = solnsts.get('data', 'fields', '')
+                currfields = ','.join(eles[0].convarmap[eles[0].ndims])
+
+                # Ensure they match up
+                if solnfields and solnfields != currfields:
+                    raise RuntimeError('Invalid solution for system')
+
+                # Process the solution
+                for etype, ele in elemap.items():
+                    #print(etype)
+                    soln = initsoln[f'soln_{etype}_p{rallocs.prank}']
+                    ele.set_ics_from_soln(soln, solncfg)
+            else:
+                for ele in eles:
+                    ele.set_ics_from_cfg_lin()
+
+        else:
+            if initsoln:
+                # Load the config and stats files from the solution
+                solncfg = Inifile(initsoln['config'])
+                solnsts = Inifile(initsoln['stats'])
+
+                # Get the names of the conserved variables (fields)
+                solnfields = solnsts.get('data', 'fields', '')
+                currfields = ','.join(eles[0].convarmap[eles[0].ndims])
+
+                # Ensure they match up
+                if solnfields and solnfields != currfields:
+                    raise RuntimeError('Invalid solution for system')
+
+                # Process the solution
+                for etype, ele in elemap.items():
+                    #print(etype)
+                    soln = initsoln[f'soln_{etype}_p{rallocs.prank}']
+                    ele.set_ics_from_soln(soln, solncfg)
+            else:
+                for ele in eles:
+                    ele.set_ics_from_cfg()
 
 
         """

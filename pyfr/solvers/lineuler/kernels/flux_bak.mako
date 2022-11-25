@@ -16,8 +16,6 @@
   // Notation for the pressure
   p = u[${nvars - 1}];
 
-    printf("%f\n",u[2]*ub[1]);
-
   // Momentum fluxes
   % for i, j in pyfr.ndrange(ndims, ndims):
       f[${i}][${j + 1}] = u[${j+1}]*ub[${i+1}]${' + p' if i == j else ''};
