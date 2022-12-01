@@ -2,16 +2,18 @@
 <%inherit file='base'/>
 <%namespace module='pyfr.backends.base.makoutil' name='pyfr'/>
 
-<%include file='pyfr.solvers.euler.kernels.rsolvers.${rsolver}'/>
+<%include file='pyfr.solvers.lineuler.kernels.rsolvers.${rsolver}'/>
 
 <%pyfr:kernel name='mpicflux' ndim='1'
               ul='inout view fpdtype_t[${str(nvars)}]'
               ur='in mpi fpdtype_t[${str(nvars)}]'
+              ubl='inout view fpdtype_t[${str(nvars)}]'
+              ubr='inout view fpdtype_t[${str(nvars)}]'
               nl='in fpdtype_t[${str(ndims)}]'
               magnl='in fpdtype_t'>
     // Perform the Riemann solve
     fpdtype_t fn[${nvars}];
-    ${pyfr.expand('rsolve', 'ul', 'ur', 'nl', 'fn')};
+    ${pyfr.expand('rsolve', 'ul', 'ur', 'ubl', 'ubr', 'nl', 'fn')};
 
     // Scale and write out the common normal fluxes
 % for i in range(nvars):

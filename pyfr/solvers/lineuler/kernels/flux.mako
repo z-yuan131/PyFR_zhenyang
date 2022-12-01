@@ -2,7 +2,6 @@
 <%namespace module='pyfr.backends.base.makoutil' name='pyfr'/>
 
 <%pyfr:macro name='inviscid_flux' params='u, ub, f, p, v'>
-
   % for i in range(ndims):
     v[${i}] = u[${i+1}]/ub[0];
   % endfor
@@ -16,7 +15,6 @@
   // Notation for the pressure
   p = u[${nvars - 1}];
 
-    printf("%f\n",u[2]*ub[1]);
 
   // Momentum fluxes
   % for i, j in pyfr.ndrange(ndims, ndims):

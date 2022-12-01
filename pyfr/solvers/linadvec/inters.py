@@ -29,6 +29,9 @@ class LinearAdvectionIntInters(TplargsMixin, BaseAdvectionIntInters):
         self._base_vect_lhs = self._vect_view(lhs, 'get_base_vect_fpts_for_inter')
         self._base_vect_rhs = self._vect_view(rhs, 'get_base_vect_fpts_for_inter')
 
+        print(self._base_scal_lhs)
+        raise RuntimeError
+
         # Additional kernel constants
         self.c |= cfg.items_as('solver-interfaces', float)
 

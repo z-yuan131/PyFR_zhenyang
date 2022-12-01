@@ -107,12 +107,12 @@ class BaseAdvectionElements(BaseElements):
 
 
             # First creat a kernel to calculate C@U
+            
             kernels['cu'] = lambda uin: self._be.kernel(
                 'cu', tplargs=srctplargs,
                 dims=[self.nupts, self.neles], ub=self.base_scal_upts[uin],
                 u=solnupts, divub=self._base_vect_upts, cu=self._base_cu_upts
             )
-
 
             kernels['negdivconf'] = lambda fout: self._be.kernel(
                 'negdivconflin', tplargs=srctplargs,

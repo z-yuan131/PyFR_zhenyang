@@ -18,6 +18,7 @@ class LinearEulerIntInters(LinearAdvectionIntInters):
         self.kernels['comm_flux'] = lambda: self._be.kernel(
             'intcflux', tplargs=tplargs, dims=[self.ninterfpts],
             ul=self._scal_lhs, ur=self._scal_rhs,
+            ubl=self._base_scal_lhs, ubr=self._base_scal_rhs,
             magnl=self._mag_pnorm_lhs, nl=self._norm_pnorm_lhs
         )
 
@@ -35,6 +36,7 @@ class LinearEulerMPIInters(LinearAdvectionMPIInters):
         self.kernels['comm_flux'] = lambda: self._be.kernel(
             'mpicflux', tplargs, dims=[self.ninterfpts],
             ul=self._scal_lhs, ur=self._scal_rhs,
+            ubl=self._base_scal_lhs, ubr=self._base_scal_rhs,
             magnl=self._mag_pnorm_lhs, nl=self._norm_pnorm_lhs
         )
 
@@ -51,7 +53,7 @@ class LinearEulerBaseBCInters(LinearAdvectionBCInters):
 
         self.kernels['comm_flux'] = lambda: self._be.kernel(
             'bccflux', tplargs=tplargs, dims=[self.ninterfpts],
-            extrns=self._external_args, ul=self._scal_lhs,
+            extrns=self._external_args, ul=self._scal_lhs, ubl=self._base_scal_lhs,
             magnl=self._mag_pnorm_lhs, nl=self._norm_pnorm_lhs,
             **self._external_vals
         )

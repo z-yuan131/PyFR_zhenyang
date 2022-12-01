@@ -54,6 +54,7 @@ class BaseSystem:
         self.ndims = eles[0].ndims
         self.nvars = eles[0].nvars
 
+
         # Load the interfaces
         int_inters = self._load_int_inters(rallocs, mesh, elemap)
         mpi_inters = self._load_mpi_inters(rallocs, mesh, elemap)
@@ -112,7 +113,7 @@ class BaseSystem:
         MODIFICATION FOR LINEAR SOLVER
         """
         # Load baseflow elements if we are on linear solvers
-        linsolver = self.cfg.get('solver','solver-type','None')
+        self.linsolver = linsolver = self.cfg.get('solver','solver-type','None')
         if linsolver == 'linear':
 
             bfdir = self.cfg.get('solver','baseflow-dir','None')
@@ -202,6 +203,7 @@ class BaseSystem:
 
     def _load_int_inters(self, rallocs, mesh, elemap):
         key = f'con_p{rallocs.prank}'
+
 
         lhs, rhs = mesh[key].astype('U4,i4,i1,i2').tolist()
         int_inters = self.intinterscls(self.backend, lhs, rhs, elemap,
