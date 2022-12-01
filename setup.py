@@ -62,6 +62,7 @@ modules = [
     'pyfr.solvers.lineuler',
     'pyfr.solvers.lineuler.kernels',
     'pyfr.solvers.lineuler.kernels.bcs',
+    'pyfr.solvers.lineuler.kernels.rsolvers',
     'pyfr.writers'
 ]
 
@@ -103,6 +104,7 @@ package_data = {
     'pyfr.solvers.linadvec.kernels': ['*.mako'],
     'pyfr.solvers.lineuler.kernels': ['*.mako'],
     'pyfr.solvers.lineuler.kernels.bcs': ['*.mako'],
+    'pyfr.solvers.lineuler.kernels.rsolvers': ['*.mako'],
     'pyfr.tests': ['*.npz']
 }
 
