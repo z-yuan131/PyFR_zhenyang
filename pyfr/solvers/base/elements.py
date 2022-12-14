@@ -31,8 +31,21 @@ class BaseElements:
         if ndims != basiscls.ndims or ndims not in self.privarmap:
             raise ValueError('Invalid element matrix dimensions')
 
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        # If we are on the linear solver, variable map is different
+        self.linsolver = self.cfg.get('solver','solver-type','None')
+        if self.linsolver == 'linear':
         # Determine the number of dynamical variables
-        self.nvars = len(self.privarmap[ndims])
+            self.nvars = 2 * len(self.privarmap[ndims])
+            self.bnvars = len(self.privarmap[ndims])
+        else:
+            self.nvars = len(self.privarmap[ndims])
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
 
         # Instantiate the basis class
         self.basis = basis = basiscls(nspts, cfg)
@@ -91,6 +104,38 @@ class BaseElements:
         # Apply and reshape
         self.scal_upts = interp @ solnmat.reshape(solnb.nupts, -1)
         self.scal_upts = self.scal_upts.reshape(nupts, nvars, neles)
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
+    def set_baseflow_from_soln(self, solnmat, cfg):
+        # Recreate the existing solution basis
+        raise NotImplementedError('to be finish')
+
+    def set_baseflow_from_cfg(self):
+
+        # Bring simulation constants into scope
+        vars = self.cfg.items_as('constants', float)
+
+        if any(d in vars for d in 'xyz'):
+            raise ValueError('Invalid constants (x, y, or z) in config file')
+
+        # Get the physical location of each solution point
+        coords = self.ploc_at_np('upts').swapaxes(0, 1)
+        vars |= dict(zip('xyz', coords))
+
+        # Evaluate the ICs from the config file
+        ics = [npeval(self.cfg.getexpr('baseflow-ics', dv), vars)
+               for dv in self.privarmap[self.ndims]]
+
+        nvars = len(self.privarmap[self.ndims])
+        # We use primitive form in baseflow
+        for i, v in enumerate(ics):
+            self.scal_upts[:, i + nvars, :] = v
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
 
     @cached_property
     def plocfpts(self):

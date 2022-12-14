@@ -87,6 +87,35 @@ class BaseSystem:
 
         eles = list(elemap.values())
 
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        # Load baseflow elements if we are on linear solvers
+        self.linsolver = self.cfg.get('solver','solver-type','None')
+        if self.linsolver == 'linear':
+            if initsoln:
+
+                # Load baseflow solution and check if calculated on the current mesh
+                bfsoln = NativeReader(self.cfg.get('solver','baseflow-dir'))
+                if mesh['mesh_uuid'] != bfsoln['mesh_uuid']:
+                    raise RuntimeError('Invalid baseflow solution for mesh.')
+
+                # Process the baseflow solution
+                for etype, ele in elemap.items():
+                    soln = bfsoln[f'soln_{etype}_p{rallocs.prank}']
+                    solncfg = Inifile(bfsoln['config'])
+                    ele.set_baseflow_from_soln(soln, solncfg)
+
+            else:
+                # Purely for tests
+                for ele in eles:
+                    ele.set_baseflow_from_cfg()
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+
         # Set the initial conditions
         if initsoln:
             # Load the config and stats files from the solution
@@ -108,6 +137,8 @@ class BaseSystem:
         else:
             for ele in eles:
                 ele.set_ics_from_cfg()
+
+
 
         # Allocate these elements on the backend
         for etype, ele in elemap.items():
@@ -292,6 +323,25 @@ class BaseSystem:
 
         for graph in self._compute_grads_graph(uinbank):
             self.backend.run_graph(graph)
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
+
+    def _base_grads_graph(self, t, uinbank):
+        raise NotImplementedError(f'Solver "{self.name}" does not compute '
+                                  'corrected gradients of the baseflow solution')
+
+    def compute_baseflow_grads(self, t, uinbank):
+        self._prepare_kernels(t, uinbank, None)
+
+        for graph in self._base_grads_graph(uinbank):
+            self.backend.run_graph(graph)
+        #print("grads_graph")
+
+    """
+    MODIFICATION FOR LINEAR SOLVER
+    """
 
     def filt(self, uinoutbank):
         kkey = ('eles/filter_soln', uinoutbank, None)

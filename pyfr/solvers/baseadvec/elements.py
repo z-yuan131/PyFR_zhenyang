@@ -22,9 +22,18 @@ class BaseAdvectionElements(BaseElements):
         kernels = self.kernels
 
         # Register pointwise kernels with the backend
-        self._be.pointwise.register(
-            'pyfr.solvers.baseadvec.kernels.negdivconf'
-        )
+        linsolver = self.cfg.get('solver','solver-type','None')
+        if linsolver == 'linear':
+            self._be.pointwise.register(
+                'pyfr.solvers.baseadvec.kernels.cu'
+            )
+            self._be.pointwise.register(
+                'pyfr.solvers.baseadvec.kernels.negdivconflin'
+            )
+        else:
+            self._be.pointwise.register(
+                'pyfr.solvers.baseadvec.kernels.negdivconf'
+            )
 
         # What anti-aliasing options we're running with
         fluxaa = 'flux' in self.antialias
@@ -37,7 +46,8 @@ class BaseAdvectionElements(BaseElements):
         srctplargs = {
             'ndims': self.ndims,
             'nvars': self.nvars,
-            'srcex': self._src_exprs
+            'srcex': self._src_exprs,
+            'c': self.cfg.items_as('constants', float)
         }
 
         # Interpolation from elemental points
@@ -79,11 +89,20 @@ class BaseAdvectionElements(BaseElements):
                 'copy', self._scal_upts_cpy, self.scal_upts[uin]
             )
 
-        kernels['negdivconf'] = lambda fout: self._be.kernel(
-            'negdivconf', tplargs=srctplargs,
-            dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
-            rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts
-        )
+
+        if linsolver == 'linear':
+            kernels['negdivconflin'] = lambda fout: self._be.kernel(
+                'negdivconf', tplargs=srctplargs,
+                dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
+                rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts,
+            )
+
+        else:
+            kernels['negdivconf'] = lambda fout: self._be.kernel(
+                'negdivconf', tplargs=srctplargs,
+                dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
+                rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts
+            )
 
         # In-place solution filter
         if self.cfg.getint('soln-filter', 'nsteps', '0'):
