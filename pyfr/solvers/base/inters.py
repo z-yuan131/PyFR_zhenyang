@@ -20,6 +20,14 @@ class BaseInters:
         # Get the number of dimensions and variables
         self.ndims = next(iter(elemap.values())).ndims
         self.nvars = next(iter(elemap.values())).nvars
+        """
+        Modified by linear solver
+        """
+        if cfg.get('solver','solver-type','None') == 'linear':
+            self.bnvars = next(iter(elemap.values())).bnvars
+        """
+        Modified by linear solver
+        """
 
         # Get the number of interfaces
         self.ninters = len(lhs)

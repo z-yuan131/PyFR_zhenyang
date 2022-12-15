@@ -11,13 +11,6 @@
     fpdtype_t mag_nl = sqrt(${pyfr.dot('nl[{i}]', i=ndims)});
     fpdtype_t norm_nl[] = ${pyfr.array('(1 / mag_nl)*nl[{i}]', i=ndims)};
 
-    // Split perturbation variables
-    fpdtype_t ulp[${${bnvars}}], urp[${${bnvars}}]
-% for i in range(bnvars):
-    ulp[${i}] = ul[${i}];
-    urp[${i}] = ur[${i}];
-% endfor
-
     // Perform the Riemann solve
     fpdtype_t fn[${bnvars}];
     ${pyfr.expand('rsolve', 'ulp', 'urp', 'norm_nl', 'fn')};
@@ -25,5 +18,7 @@
     // Scale and write out the common normal fluxes
 % for i in range(bnvars):
     ul[${i}] = mag_nl*fn[${i}];
+    // set base flow flux to 0
+    ul[${i+bnvars}] = 0;
 % endfor
 </%pyfr:kernel>

@@ -85,11 +85,25 @@ class BaseElements:
                for dv in self.privarmap[self.ndims]]
 
         # Allocate
-        self.scal_upts = np.empty((self.nupts, self.nvars, self.neles))
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        if self.cfg.get('solver','solver-type','None') == 'None':
+            self.scal_upts = np.empty((self.nupts, self.nvars, self.neles))
 
-        # Convert from primitive to conservative form
-        for i, v in enumerate(self.pri_to_con(ics, self.cfg)):
-            self.scal_upts[:, i, :] = v
+            # Convert from primitive to conservative form
+            for i, v in enumerate(self.pri_to_con(ics, self.cfg)):
+                self.scal_upts[:, i, :] = v
+        else:
+            # Convert from primitive to conservative form
+            rhob = self.scal_upts[:, self.bnvars]
+            
+            for i, v in enumerate(self.pri_to_con(ics, rhob, self.cfg)):
+                self.scal_upts[:, i, :] = v
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
 
     def set_ics_from_soln(self, solnmat, solncfg):
         # Recreate the existing solution basis
@@ -110,7 +124,7 @@ class BaseElements:
     """
     def set_baseflow_from_soln(self, solnmat, cfg):
         # Recreate the existing solution basis
-        raise NotImplementedError('to be finish')
+        raise NotImplementedError('to be finished')
 
     def set_baseflow_from_cfg(self):
 
@@ -128,10 +142,13 @@ class BaseElements:
         ics = [npeval(self.cfg.getexpr('baseflow-ics', dv), vars)
                for dv in self.privarmap[self.ndims]]
 
-        nvars = len(self.privarmap[self.ndims])
-        # We use primitive form in baseflow
+        # Allocate
+        self.scal_upts = np.empty((self.nupts, self.nvars, self.neles))
+
+        bnvars = self.bnvars
+        # Baseflow variables use primitive form
         for i, v in enumerate(ics):
-            self.scal_upts[:, i + nvars, :] = v
+            self.scal_upts[:, i + bnvars, :] = v
 
     """
     MODIFICATION FOR LINEAR SOLVER

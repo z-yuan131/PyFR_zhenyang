@@ -13,7 +13,7 @@ class LinearEulerIntInters(LinearAdvectionIntInters):
 
         rsolver = self.cfg.get('solver-interfaces', 'riemann-solver')
         tplargs = dict(ndims=self.ndims, nvars=self.nvars, rsolver=rsolver,
-                       c=self.c)
+                       c=self.c, bnvars=self.bnvars)
 
         self.kernels['comm_flux'] = lambda: self._be.kernel(
             'intcflux', tplargs=tplargs, dims=[self.ninterfpts],
@@ -29,7 +29,7 @@ class LinearEulerMPIInters(LinearAdvectionMPIInters):
 
         rsolver = self.cfg.get('solver-interfaces', 'riemann-solver')
         tplargs = dict(ndims=self.ndims, nvars=self.nvars, rsolver=rsolver,
-                       c=self.c)
+                       c=self.c, bnvars=self.bnvars)
 
         self.kernels['comm_flux'] = lambda: self._be.kernel(
             'mpicflux', tplargs, dims=[self.ninterfpts],
@@ -45,7 +45,7 @@ class LinearEulerBaseBCInters(LinearAdvectionBCInters):
 
         rsolver = self.cfg.get('solver-interfaces', 'riemann-solver')
         tplargs = dict(ndims=self.ndims, nvars=self.nvars, rsolver=rsolver,
-                       c=self.c, bctype=self.type)
+                       c=self.c, bctype=self.type, bnvars=self.bnvars)
 
         self.kernels['comm_flux'] = lambda: self._be.kernel(
             'bccflux', tplargs=tplargs, dims=[self.ninterfpts],

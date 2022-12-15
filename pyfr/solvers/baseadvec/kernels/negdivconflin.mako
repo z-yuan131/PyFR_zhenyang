@@ -8,7 +8,6 @@
               ploc='in fpdtype_t[${str(ndims)}]'
               u='in fpdtype_t[${str(nvars)}]'
               rcpdjac='in fpdtype_t'>
-    //cu='in fpdtype_t[${str(nvars)}]'
 
 % for i, ex in enumerate(srcex):
         //tdivtconf[${i}] = -rcpdjac*tdivtconf[${i}] + ${ex} - cu[${i}];

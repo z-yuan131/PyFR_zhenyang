@@ -91,8 +91,8 @@ class BaseAdvectionElements(BaseElements):
 
 
         if linsolver == 'linear':
-            kernels['negdivconflin'] = lambda fout: self._be.kernel(
-                'negdivconf', tplargs=srctplargs,
+            kernels['negdivconf'] = lambda fout: self._be.kernel(
+                'negdivconflin', tplargs=srctplargs,
                 dims=[self.nupts, self.neles], tdivtconf=self.scal_upts[fout],
                 rcpdjac=self.rcpdjac_at('upts'), ploc=plocupts, u=solnupts,
             )
