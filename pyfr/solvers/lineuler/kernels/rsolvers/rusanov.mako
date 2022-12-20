@@ -20,6 +20,7 @@
     fpdtype_t a = sqrt(${0.25*c['gamma']}*(pl + pr + pbl + pbr)/(ul[0] + ur[0] + ul[${bnvars}] + ur[${bnvars}]))
                 + 0.25*fabs(nv);
 
+    // Output
 % for i in range(bnvars):
     nf[${i}] = 0.5*(${' + '.join('n[{j}]*(fl[{j}][{i}] + fr[{j}][{i}])'
                                  .format(i=i, j=j) for j in range(ndims))})

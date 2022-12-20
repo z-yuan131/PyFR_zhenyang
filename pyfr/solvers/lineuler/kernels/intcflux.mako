@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-u
+# -*- coding: utf-8 -*-
 <%inherit file='base'/>
 <%namespace module='pyfr.backends.base.makoutil' name='pyfr'/>
 
@@ -13,7 +13,7 @@
 
     // Perform the Riemann solve
     fpdtype_t fn[${bnvars}];
-    ${pyfr.expand('rsolve', 'ul', 'ur', 'nl', 'fn')};
+    ${pyfr.expand('rsolve', 'ul', 'ur', 'norm_nl', 'fn')};
 
     // Scale and write out the common normal fluxes
 % for i in range(bnvars):

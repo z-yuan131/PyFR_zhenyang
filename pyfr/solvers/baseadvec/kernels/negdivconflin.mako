@@ -10,7 +10,6 @@
               rcpdjac='in fpdtype_t'>
 
 % for i, ex in enumerate(srcex):
-        //tdivtconf[${i}] = -rcpdjac*tdivtconf[${i}] + ${ex} - cu[${i}];
     tdivtconf[${i}] = -rcpdjac*tdivtconf[${i}] + ${ex};
 % endfor
 </%pyfr:kernel>

@@ -37,6 +37,6 @@
 % endfor
 
 % for i in range(bnvars):
-    ur[${i + bnvars] = ul[${i + bnvars}];
+    ur[${i + bnvars}] = ul[${i + bnvars}];
 % endfor
 </%pyfr:macro>

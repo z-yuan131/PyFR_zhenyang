@@ -6,7 +6,7 @@
     v[${i}] = u[${i+1}]/u[${bnvars}];
 % endfor
 
-  // Notation for the pressure
+  // Notation for the pressure perturbation
   p = u[${bnvars - 1}];
 
   // Density and pressure flux

@@ -12,6 +12,7 @@ from pyfr.backends.base import NullKernel
 from pyfr.inifile import Inifile
 from pyfr.shapes import BaseShape
 from pyfr.util import memoize, subclasses
+from pyfr.readers.native import NativeReader
 
 
 class BaseSystem:
@@ -94,8 +95,12 @@ class BaseSystem:
         # Load baseflow elements if we are on linear solvers
         self.linsolver = self.cfg.get('solver','solver-type','None')
         if self.linsolver == 'linear':
-            if initsoln:
+            if self.cfg.get('solver','baseflow-dir','None') == 'None':
+                # Purely for tests
+                for ele in eles:
+                    ele.set_baseflow_from_cfg()
 
+            else:
                 # Load baseflow solution and check if calculated on the current mesh
                 bfsoln = NativeReader(self.cfg.get('solver','baseflow-dir'))
                 if mesh['mesh_uuid'] != bfsoln['mesh_uuid']:
@@ -107,10 +112,6 @@ class BaseSystem:
                     solncfg = Inifile(bfsoln['config'])
                     ele.set_baseflow_from_soln(soln, solncfg)
 
-            else:
-                # Purely for tests
-                for ele in eles:
-                    ele.set_baseflow_from_cfg()
 
         """
         MODIFICATION FOR LINEAR SOLVER

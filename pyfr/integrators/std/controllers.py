@@ -15,6 +15,15 @@ class BaseStdController(BaseStdIntegrator):
         # Solution filtering frequency
         self._fnsteps = self.cfg.getint('soln-filter', 'nsteps', '0')
 
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        # Get solver info
+        self.linsolver = self.cfg.get('solver','solver-type','None')
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+
         # Stats on the most recent step
         self.stepinfo = []
 
@@ -72,6 +81,19 @@ class StdNoneController(BaseStdController):
     def advance_to(self, t):
         if t < self.tcurr:
             raise ValueError('Advance time is in the past')
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
+        """Just for test, t = 0 doesn't make sense"""
+        # Calculate baseflow gradients
+        if self.linsolver == 'linear' and t == 0:
+            self.system.compute_baseflow_grads(self.tcurr, self._idxcurr)
+        print('t = ',t)
+
+        """
+        MODIFICATION FOR LINEAR SOLVER
+        """
 
         while self.tcurr < t:
             # Decide on the time step

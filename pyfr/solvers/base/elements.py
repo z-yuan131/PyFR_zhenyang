@@ -88,7 +88,7 @@ class BaseElements:
         """
         MODIFICATION FOR LINEAR SOLVER
         """
-        if self.cfg.get('solver','solver-type','None') == 'None':
+        if self.linsolver == 'None':
             self.scal_upts = np.empty((self.nupts, self.nvars, self.neles))
 
             # Convert from primitive to conservative form
@@ -97,7 +97,7 @@ class BaseElements:
         else:
             # Convert from primitive to conservative form
             rhob = self.scal_upts[:, self.bnvars]
-            
+
             for i, v in enumerate(self.pri_to_con(ics, rhob, self.cfg)):
                 self.scal_upts[:, i, :] = v
 
@@ -248,6 +248,7 @@ class BaseElements:
         ) or abufs[-1]
         salloc = lambda ex, n: alloc(ex, (n, nvars, neles))
         valloc = lambda ex, n: alloc(ex, (ndims, n, nvars, neles))
+        bvalloc = lambda ex, n: alloc(ex, (ndims, n, self.bnvars, neles))
 
         # Allocate required scalar scratch space
         if 'scal_fpts' in sbufs:
@@ -266,6 +267,16 @@ class BaseElements:
             self._vect_qpts = valloc('vect_qpts', nqpts)
         if 'vect_fpts' in sbufs:
             self._vect_fpts = valloc('vect_fpts', nfpts)
+
+        """
+        Linear solver modifications
+        """
+        # Allocate required vector scratch space
+        if 'basegrad_upts' in sbufs:
+            self._basegrad_upts = bvalloc('basegrad_upts', nupts)
+        """
+        Linear solver modifications  /end
+        """
 
         # Allocate the storage required by the time integrator
         self.scal_upts = [backend.matrix(self.scal_upts.shape,
