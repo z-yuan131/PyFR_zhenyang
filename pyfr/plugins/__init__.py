@@ -1,3 +1,4 @@
+from pyfr.plugins.alm import ALMPlugindev3_v2
 from pyfr.plugins.ascent import AscentPlugin
 from pyfr.plugins.base import (BaseCLIPlugin, BasePlugin, BaseSolnPlugin,
                                BaseSolverPlugin)

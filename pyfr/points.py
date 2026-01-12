@@ -104,7 +104,12 @@ class PointLocator:
         sbuf = (x, mpi.BYTE) if x is not mpi.IN_PLACE else x
         rbuf = (y, mpi.BYTE)
 
-        coll(sbuf, rbuf, op=autofree(mpi.Op.Create(op, commute=False)))
+        #coll(sbuf, rbuf, op=autofree(mpi.Op.Create(op, commute=False)))
+        mop = mpi.Op.Create(op, commute=False)
+        try:
+            coll(sbuf, rbuf, op=mop)
+        finally:
+            mop.Free()
 
     def _find_closest_node(self, pts):
         comm, rank, root = get_comm_rank_root()
