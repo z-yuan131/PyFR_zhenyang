@@ -15,6 +15,10 @@ class TplargsMixin:
         rsolver = self.cfg.get('solver-interfaces', 'riemann-solver')
         visc_corr = self.cfg.get('solver', 'viscosity-correction', 'none')
         shock_capturing = self.cfg.get('solver', 'shock-capturing')
+        try: 
+            wmodel = self.cfg.get('solver-plugin-wmsamp', 'wall-model')
+        except:
+            wmodel = 'none'
         if shock_capturing == 'entropy-filter':
             self.p_min = self.cfg.getfloat('solver-entropy-filter', 'p-min',
                                            1e-6)
@@ -25,7 +29,7 @@ class TplargsMixin:
         self._tplargs = dict(ndims=self.ndims, nvars=self.nvars,
                              rsolver=rsolver, visc_corr=visc_corr,
                              shock_capturing=shock_capturing, c=self.c,
-                             p_min=self.p_min)
+                             p_min=self.p_min, wmodel=wmodel)
 
 
 class NavierStokesIntInters(TplargsMixin,
@@ -127,6 +131,9 @@ class NavierStokesNoSlpAdiaWallBCInters(NavierStokesBaseBCInters):
     type = 'no-slp-adia-wall'
     cflux_state = 'ghost-imperm'
 
+class NavierStokesNoSlpAdiaWallModelledBCInters(NavierStokesBaseBCInters):
+    type = 'wall-model'
+    cflux_state = 'ghost-wm'
 
 class NavierStokesSlpAdiaWallBCInters(NavierStokesBaseBCInters):
     type = 'slp-adia-wall'

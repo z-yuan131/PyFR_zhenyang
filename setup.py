@@ -64,6 +64,7 @@ modules = [
     'pyfr.solvers.navstokes',
     'pyfr.solvers.navstokes.kernels',
     'pyfr.solvers.navstokes.kernels.bcs',
+    'pyfr.solvers.navstokes.kernels.bcs.wmodel',
     'pyfr.writers',
     'pyfr.writers.vtk'
 ]
@@ -104,6 +105,7 @@ package_data = {
     'pyfr.solvers.euler.kernels.rsolvers': ['*.mako'],
     'pyfr.solvers.navstokes.kernels': ['*.mako'],
     'pyfr.solvers.navstokes.kernels.bcs': ['*.mako'],
+    'pyfr.solvers.navstokes.kernels.bcs.wmodel': ['*.mako'],
     'pyfr.tests': ['*.npz']
 }
 
