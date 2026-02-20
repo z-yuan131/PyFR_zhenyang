@@ -150,7 +150,7 @@ class LinearNavierStokesSystem(BaseAdvectionDiffusionSystem):
     def compute_grads_baseflow(self, t, uinbank):
         self._prepare_kernels(t, uinbank, None)
         for graph in self._compute_grads_graph_baseflow(uinbank):
-            graph.run()
+            self.backend.run_graph(graph)
 
     def _init_baseflow_cache(self):
         baseflow_soln = self._get_baseflow_soln()
