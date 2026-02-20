@@ -213,6 +213,7 @@ def main():
     ap_run = sp.add_parser('run', help='run --help')
     ap_run.add_argument('mesh', help='mesh file')
     ap_run.add_argument('cfg', type=FileType('r'), help='config file')
+    ap_run.add_argument('bsoln', nargs='?', help='baseflow solution file')
     ap_run.set_defaults(process=process_run)
 
     # Restart command
@@ -221,6 +222,7 @@ def main():
     ap_restart.add_argument('soln', help='solution file')
     ap_restart.add_argument('cfg', nargs='?', type=FileType('r'),
                             help='new config file')
+    ap_restart.add_argument('bsoln', nargs='?', help='Baseflow solution file')
     ap_restart.set_defaults(process=process_restart)
 
     # Options common to run and restart
@@ -549,11 +551,24 @@ def _process_common(args, soln, cfg):
 
 
 def process_run(args):
-    _process_common(args, None, Inifile.load(args.cfg))
+    cfg = Inifile.load(args.cfg)
+
+    # Allow CLI override for LNS baseflow source
+    if args.bsoln:
+        bpath = Path(args.bsoln).absolute()
+        cfg.set('solver', 'baseflow-soln', bpath)
+
+    _process_common(args, None, cfg)
 
 
 def process_restart(args):
     cfg = Inifile.load(args.cfg) if args.cfg else None
+
+    # Allow CLI override for LNS baseflow source
+    if args.bsoln:
+        bpath = Path(args.bsoln).absolute()
+        cfg.set('solver', 'baseflow-soln', bpath)
+
     _process_common(args, args.soln, cfg)
 
 

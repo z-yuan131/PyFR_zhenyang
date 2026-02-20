@@ -101,6 +101,12 @@ class BaseAdvectionElements(BaseElements):
             out=self.scal_upts[fout], beta=float(self.basis.order > 0)
         )
 
+        # If linear solver
+        if self.cfg.get('solver', 'system') == 'linear-navier-stokes':
+            self._srctplargs |= {'linsolver': True}
+            self._srctplargs |= {'c': self.cfg.items_as('constants', float)}
+            self._soln_in_src_macros |= True
+
         def copy_soln(uin):
             if self._soln_in_src_macros:
                 return self._be.kernel('copy', self._scal_upts_cpy,

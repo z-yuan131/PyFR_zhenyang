@@ -107,6 +107,14 @@ class BaseElements:
         for i, v in enumerate(self.pri_to_con(ics, self.cfg)):
             self.scal_upts[:, i, :] = m8 @ v if m8 is not None else v
 
+        # For now, we assume initial condition is random noise 
+        if self.cfg.get('solver', 'system') == 'linear-navier-stokes':
+            self.scal_upts = 1e-4*np.random.default_rng(0).standard_normal(
+                self.scal_upts.shape
+            )
+            print(np.max(self.scal_upts), np.min(self.scal_upts))
+            #raise RuntimeError
+
     def set_ics_from_soln(self, solnmat, solncfg):
         # Recreate the existing solution basis
         solnb = self.basis.__class__(None, solncfg)
@@ -437,6 +445,30 @@ class BaseElements:
     def _get_comm_fpts_for_inter(self, eidx, fidx):
         return self._comm_fpts.mid, self._srtd_face_fpts[fidx][eidx]
 
+    @inters_map
+    def get_baseflow_for_inter(self, eidx, fidx):
+        rmap = self._srtd_face_fpts[fidx][eidx]
+        return self._baseflow_fpts.mid, rmap
+
+    @inters_map
+    def get_basegrad_for_inter(self, eidx, fidx):
+        rmap = self._srtd_face_fpts[fidx][eidx]
+        return self._baseflow_grad_fpts.mid, rmap, self.nfpts
+
     def get_ploc_for_inter(self, eidx, fidx):
         fpts_idx = self._srtd_face_fpts[fidx][eidx]
         return self.plocfpts[fpts_idx, eidx]
+
+    def get_var_for_inter(self, eidx, fidx):
+        raise RuntimeError('Trial similar to ploc getter')
+
+        # Construct the surface solution operator matrix
+        solnop = self.basis.ubasis.nodal_basis_at(self.basis.fpts)
+
+        print(self.eles.shape, solnop.shape)
+        # Apply the operator to the soln elements and reshape
+        solnfpts = solnop @ self.soln.reshape(self.nspts, -1)
+        #solnfpts = solnfpts.reshape(self.nfpts, self.neles, self.nvars)
+
+        #return solnfpts
+        raise NotImplementedError
