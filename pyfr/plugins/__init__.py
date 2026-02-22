@@ -1,3 +1,4 @@
+from pyfr.plugins.arnoldi import ArnoldiPlugin
 from pyfr.plugins.ascent import AscentPlugin
 from pyfr.plugins.base import (BaseCLIPlugin, BasePlugin, BaseSolnPlugin,
                                BaseSolverPlugin)
