@@ -3,8 +3,11 @@ from ctypes.util import find_library
 from pathlib import Path
 import numpy as np
 
+from pyfr.inifile import Inifile
 from pyfr.mpiutil import get_comm_rank_root, mpi
 from pyfr.plugins.base import BaseSolverPlugin
+from pyfr.util import first
+from pyfr.writers.native import NativeWriter
 # from pyfr.plugins.arpack_test.eigs_parpack import ParpackRCISession
 
 def _sort_idx(vals, which):
@@ -20,6 +23,7 @@ def _sort_idx(vals, which):
 
 class _ParpackLib:
     def __init__(self):
+        # This is kind of unreliable, maybe we choose to export a pyfr library
         libname = find_library('parpack') or 'libparpack.so'
         self.lib = ct.CDLL(libname)
 
@@ -93,7 +97,7 @@ class ParpackRCISession:
     Provide the propagated vector as the next `yloc`.
     """
 
-    def __init__(self, nloc, nglob, *, k=6, which='LR', ncv=None, tol=0.0,
+    def __init__(self, nloc, nglob, *, k=6, which='LM', ncv=None, tol=1e-6,
                  maxiter=None, v0=None, comm=mpi.COMM_WORLD):
         self.nloc = int(nloc)
         self.nglob = int(nglob)
@@ -158,6 +162,10 @@ class ParpackRCISession:
     @property
     def done(self):
         return self._finished
+
+    @property
+    def needs_operator(self):
+        return self._pending_ido in (-1, 1)
 
     @property
     def ido(self):
@@ -312,6 +320,75 @@ class ParpackRCISession:
         vecs_local = z[:, :self.k][:, order]
         return vals, vecs_local
 
+    def save_state(self, path, *, tcurr=None, nacptsteps=None):
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        payload = {
+            'version': np.array(1, dtype=np.int32),
+            'nloc': np.array(self.nloc, dtype=np.int64),
+            'nglob': np.array(self.nglob, dtype=np.int64),
+            'k': np.array(self.k, dtype=np.int64),
+            'which': np.array(self.which, dtype='S'),
+            'ncv': np.array(self.ncv, dtype=np.int64),
+            'tol': np.array(self._tol, dtype=np.float64),
+            'maxiter': np.array(self.maxiter, dtype=np.int64),
+            'ido': np.array(self._ido.value, dtype=np.int32),
+            'info': np.array(self._info.value, dtype=np.int32),
+            'pending_ido': np.array(-99 if self._pending_ido is None
+                                    else self._pending_ido, dtype=np.int32),
+            'finished': np.array(int(self._finished), dtype=np.int8),
+            'resid': self._resid,
+            'v': self._v,
+            'iparam': self._iparam,
+            'ipntr': self._ipntr,
+            'workd': self._workd,
+            'workl': self._workl
+        }
+        if tcurr is not None:
+            payload['tcurr'] = np.array(float(tcurr), dtype=np.float64)
+        if nacptsteps is not None:
+            payload['nacptsteps'] = np.array(int(nacptsteps), dtype=np.int64)
+
+        tmppath = path.with_suffix(path.suffix + '.tmp')
+        with tmppath.open('wb') as f:
+            np.savez(f, **payload)
+        tmppath.replace(path)
+
+    @classmethod
+    def from_state(cls, path, *, comm=mpi.COMM_WORLD):
+        with np.load(path, allow_pickle=False) as data:
+            if int(data['version']) != 1:
+                raise RuntimeError('Unsupported PARPACK checkpoint version')
+
+            sess = cls(
+                int(data['nloc']),
+                int(data['nglob']),
+                k=int(data['k']),
+                which=data['which'].tobytes().decode(),
+                ncv=int(data['ncv']),
+                tol=float(data['tol']),
+                maxiter=int(data['maxiter']),
+                v0=None,
+                comm=comm
+            )
+
+            sess._ido.value = int(data['ido'])
+            sess._info.value = int(data['info'])
+
+            pending = int(data['pending_ido'])
+            sess._pending_ido = None if pending == -99 else pending
+            sess._finished = bool(int(data['finished']))
+
+            sess._resid[:] = data['resid']
+            sess._v[:] = data['v']
+            sess._iparam[:] = data['iparam']
+            sess._ipntr[:] = data['ipntr']
+            sess._workd[:] = data['workd']
+            sess._workl[:] = data['workl']
+
+        return sess
+
 
 
 
@@ -339,9 +416,9 @@ class ArnoldiPlugin(BaseSolverPlugin):
         self._root = root
 
         self._k = self.cfg.getint(cfgsect, 'n-eigs', 6)
-        self._which = self.cfg.get(cfgsect, 'which', 'LR')
+        self._which = self.cfg.get(cfgsect, 'which', 'LM')
         self._ncv = self.cfg.getint(cfgsect, 'ncv', 0) or None
-        self._tol = self.cfg.getfloat(cfgsect, 'eig-tol', 1e-8)
+        self._tol = self.cfg.getfloat(cfgsect, 'eig-tol', 1e-6)
         self._maxiter = self.cfg.getint(cfgsect, 'maxiter', 0) or None
         self._init_mode = self.cfg.get(cfgsect, 'initial-vector', 'arpack')
         if self._init_mode not in {'arpack', 'current', 'random'}:
@@ -363,28 +440,64 @@ class ArnoldiPlugin(BaseSolverPlugin):
 
         self._vals_path = Path(self.cfg.getpath(cfgsect, 'eigs-file',
                                 str(basedir / f'{basename}.eigs.npy'), abs=True))
-        self._vecs_path = Path(self.cfg.getpath(cfgsect, 'vecs-file',
-                                str(basedir / f'{basename}.vecs.rank{rank}.npy'), abs=True))
+        self._write_vecs_pyfrs = self.cfg.getbool(cfgsect, 'write-vecs-pyfrs', True)
+        #self._save_vecs_npy = self.cfg.getbool(cfgsect, 'save-vecs-npy', False)
+        #self._vecs_path = Path(self.cfg.getpath(cfgsect, 'vecs-file',
+        #                        str(basedir / f'{basename}.vecs.rank{rank}.npy'), abs=True))
+
+        vecs_pyfrs = Path(self.cfg.getpath(cfgsect, 'vecs-pyfrs-file',
+                           str(basedir / f'{basename}.vecs.pyfrs'), abs=True))
+        self._resume = self.cfg.getbool(cfgsect, 'resume', True)
+        self._state_write_every = self.cfg.getint(cfgsect,
+                                                  'state-write-every', 1)
+        if self._state_write_every < 1:
+            raise ValueError('solver-plugin-arnoldi: state-write-every must '
+                             'be >= 1')
+        self._state_path = Path(self.cfg.getpath(
+            cfgsect, 'state-file',
+            str(basedir / f'{basename}.state.rank{rank}.npz'), abs=True
+        ))
 
         # Get the element map and register
+        self._ele_types = list(intg.system.ele_types)
+        self._emap = intg.system.ele_map
         self._banks = intg.system.ele_banks
         self._ridx = getattr(intg, '_idxcurr', 0)
+        self._convars = list(first(self._emap.values()).convars)
 
         self._parts = []
-        for b in self._banks:
+        for etype, b in zip(self._ele_types, self._banks):
             sh = b[self._ridx].ioshape
             n = int(np.prod(sh))
-            self._parts.append((sh, n))
-        self._nloc = sum(n for _, n in self._parts)
+            self._parts.append((etype, sh, n))
+        self._nloc = sum(n for _, _, n in self._parts)
         self._nglob = int(self._comm.allreduce(self._nloc))
+
+        self._vecs_writer = None
+        if self._write_vecs_pyfrs:
+            ershapes, erdata = {}, {}
+            for etype in self._ele_types:
+                if etype in intg.system.mesh.eidxs:
+                    ershapes[etype] = (self.nvars*self._k, self._emap[etype].nupts)
+                    erdata[etype] = intg.system.mesh.eidxs[etype]
+
+            self._vecs_writer = NativeWriter.from_integrator(
+                intg, vecs_pyfrs.parent, vecs_pyfrs.name, 'arnoldi'
+            )
+            self._vecs_writer.set_shapes_eidxs(ershapes, erdata)
+            self._vecs_async_timeout = self.cfg.getfloat(cfgsect, 'async-timeout', 0)
 
         self._session = None
         #self._last_exchange_step = None
         self._done = False
+        self._last_state_write_step = intg.nacptsteps
 
-        # If we're not restarting then make sure we initializae the 
-        # PARPACK session immediately so that it can start iterating right away
-        if not intg.isrestart:
+        # If restarting, restore the full PARPACK state and requested x.
+        if intg.isrestart and self._resume and self._state_path.exists():
+            self._restore_state(intg)
+        elif not intg.isrestart:
+            # If we're not restarting then make sure we initializae the
+            # PARPACK session immediately so that it can start iterating right away.
             self.tout_last -= self._sample_dt
 
     def _pack_reg(self, ridx):
@@ -401,7 +514,7 @@ class ArnoldiPlugin(BaseSolverPlugin):
         xloc = np.asarray(xloc)
 
         off = 0
-        for b, (sh, n) in zip(self._banks, self._parts):
+        for b, (_, sh, n) in zip(self._banks, self._parts):
             arr = xloc[off:off + n].reshape(sh)
             b[ridx].set(arr)
             off += n
@@ -412,13 +525,61 @@ class ArnoldiPlugin(BaseSolverPlugin):
         intg._idxcurr = ridx
         intg._invalidate_caches()
 
-    def _save_results(self, vals, vecs_loc):
+    def _prepare_vecs_metadata(self, intg):
+        comm, rank, root = get_comm_rank_root()
+
+        fields = [f'ev{j}_{v}' for j in range(self._k) for v in self._convars]
+
+        stats = Inifile()
+        stats.set('data', 'fields', ','.join(fields))
+        stats.set('data', 'prefix', 'arnoldi')
+        stats.set('arnoldi', 'n-eigs', self._k)
+        stats.set('arnoldi', 'which', self._which)
+        intg.collect_stats(stats)
+
+        if rank == root:
+            metadata = {**intg.cfgmeta, 'stats': stats.tostr(),
+                        'mesh-uuid': intg.mesh_uuid}
+        else:
+            metadata = None
+
+        sdata = intg.serialiser.serialise()
+        if rank == root:
+            metadata |= sdata
+
+        return metadata
+
+    def _prepare_vecs_data(self, vecs_loc):
+        data = {}
+
+        # For each element type, stack [mode0(all vars), mode1(all vars), ...]
+        # into writer shape (neles, nvars*k, nupts).
+        off = 0
+        for etype, sh, n in self._parts:
+            modes = []
+            for j in range(self._k):
+                vj = vecs_loc[off:off + n, j].reshape(sh)
+                modes.append(vj.transpose(2, 1, 0))
+
+            data[etype] = np.concatenate(modes, axis=1)
+            off += n
+
+        return data
+
+    def _save_results(self, intg, vals, vecs_loc):
         self._vals_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self._rank == self._root:
             np.save(self._vals_path, vals)
 
-        np.save(self._vecs_path, vecs_loc)
+        #if self._save_vecs_npy:
+        #    np.save(self._vecs_path, vecs_loc)
+
+        if self._vecs_writer is not None:
+            metadata = self._prepare_vecs_metadata(intg)
+            data = self._prepare_vecs_data(vecs_loc)
+            self._vecs_writer.write(data, intg.tcurr, metadata,
+                                    self._vecs_async_timeout)
 
     def _global_norm(self, xloc):
         l2loc = float(np.vdot(xloc, xloc).real)
@@ -464,14 +625,56 @@ class ArnoldiPlugin(BaseSolverPlugin):
 
         if out['state'] == 'done':
             vals, vecs_loc = self._session.extract(return_eigenvectors=True)
-            self._save_results(vals, vecs_loc)
+            self._save_results(intg, vals, vecs_loc)
             self._done = True
             return
 
         self._set_stepper_vector(intg, out['x'])
         #self._last_exchange_step = intg.nacptsteps
 
-        
+    def _save_state(self, intg):
+        if self._session is None:
+            return
+
+        self._session.save_state(self._state_path, tcurr=intg.tcurr,
+                                 nacptsteps=intg.nacptsteps)
+        self._last_state_write_step = intg.nacptsteps
+
+    def _restore_state(self, intg):
+        self._session = ParpackRCISession.from_state(self._state_path,
+                                                     comm=self._comm)
+        self._done = self._session.done
+
+        if self._session.done:
+            return
+
+        # Sanity check restart time against checkpoint time.
+        # This avoids silently resuming with a mismatched solver snapshot.
+        # Only root checks and broadcasts the decision.
+        chk_ok = True
+        msg = None
+        if self._rank == self._root:
+            with np.load(self._state_path, allow_pickle=False) as data:
+                if 'tcurr' in data:
+                    tchk = float(data['tcurr'])
+                    if abs(tchk - float(intg.tcurr)) > max(self.tol, 1.0e-13):
+                        chk_ok = False
+                        msg = (f'Arnoldi restart mismatch: checkpoint tcurr={tchk} '
+                               f'but solution tcurr={float(intg.tcurr)}')
+        chk_ok = self._comm.bcast(chk_ok, root=self._root)
+        msg = self._comm.bcast(msg, root=self._root)
+        if not chk_ok:
+            raise RuntimeError(msg)
+
+        # If PARPACK is waiting for y = A*x, put x back in the stepper.
+        if self._session.needs_operator:
+            self._set_stepper_vector(intg, self._session._get_requested_x())
+        else:
+            out = self._session.iterate()
+            if out['state'] == 'done':
+                self._done = True
+            else:
+                self._set_stepper_vector(intg, out['x'])
 
     def _parpack_exchange(self, intg):
         yloc = self._pack_reg(getattr(intg, '_idxcurr', 0))
@@ -482,7 +685,7 @@ class ArnoldiPlugin(BaseSolverPlugin):
 
         if out['state'] == 'done':
             vals, vecs_loc = self._session.extract(return_eigenvectors=True)
-            self._save_results(vals, vecs_loc)
+            self._save_results(intg, vals, vecs_loc)
             self._done = True
             return
 
@@ -494,12 +697,28 @@ class ArnoldiPlugin(BaseSolverPlugin):
     def _parpack_routine(self, intg):
         if self._session is None:
             self._start_parpack(intg)
-        else:
+        elif self._session.needs_operator:
             self._parpack_exchange(intg)
+        else:
+            out = self._session.iterate()
+            if self._rank == self._root:
+                print('Parpack handshake', 'time', intg.tcurr,
+                      'ido', out['ido'], flush=True)
+
+            if out['state'] == 'done':
+                vals, vecs_loc = self._session.extract(return_eigenvectors=True)
+                self._save_results(intg, vals, vecs_loc)
+                self._done = True
+                return
+
+            self._set_stepper_vector(intg, out['x'])
 
     def __call__(self, intg):
         if self._done:
             return
+
+        if intg.nacptsteps - self._last_state_write_step >= self._state_write_every:
+            self._save_state(intg)
 
         # I don't think this is necessary since arnoldi algorithm should start immediately, but just in case, we can delay starting until a certain number of accepted steps have passed
         #if intg.nacptsteps < self._run_at_step:
@@ -522,3 +741,11 @@ class ArnoldiPlugin(BaseSolverPlugin):
 
         # Update the last output time
         self.tout_last = intg.tcurr
+
+    def finalise(self, intg):
+        self._save_state(intg)
+
+        super().finalise(intg)
+
+        if self._vecs_writer is not None:
+            self._vecs_writer.flush()

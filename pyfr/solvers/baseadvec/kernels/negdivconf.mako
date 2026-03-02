@@ -6,9 +6,6 @@
 
 #include <stdio.h>
 
-% if linsolver:
-    <%include file='pyfr.solvers.baseadvec.kernels.linsource'/>
-% endif
 
 
 <%pyfr:kernel name='negdivconf' ndim='2'
@@ -23,13 +20,9 @@ fpdtype_t src[${nvars}] = {};
     ${pyfr.expand(name, 't', 'u', 'ploc', 'src')};
 % endfor
 
-fpdtype_t linsrc[${nvars}] = {};
-% if linsolver:
-    ${pyfr.expand('linsource', 'u', 'linsrc')};
-% endif
 
 % for i in range(nvars):
-    tdivtconf[${i}] = -rcpdjac*tdivtconf[${i}] + src[${i}] + linsrc[${i}];
+    tdivtconf[${i}] = -rcpdjac*tdivtconf[${i}] + src[${i}]; // + linsrc[${i}];
 % endfor
 
 

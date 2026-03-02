@@ -1,7 +1,7 @@
 <%inherit file='base'/>
 <%namespace module='pyfr.backends.base.makoutil' name='pyfr'/>
 
-<%pyfr:macro name='linsource' params='u, linsrc' externs='ub, gb'>
+<%pyfr:macro name='linsource' params='t, u, ploc, src' externs='ub, gb'>
     // Source terms for the linear solver
     fpdtype_t rhob = ub[0];
     fpdtype_t invrhob2 = 1.0/(rhob*rhob);
@@ -20,9 +20,9 @@
     fpdtype_t div_ub = ub_x + vb_y;                
     fpdtype_t up_grad_pb = up*pb_x + vp*pb_y;      
 
-    linsrc[1] += -up_grad_u1b + rhop*invrhob2*pb_x;
-    linsrc[2] += -up_grad_u2b + rhop*invrhob2*pb_y;
-    linsrc[3] += -(${c['gamma']} - 1.0)*(pp*div_ub + up_grad_pb);
+    src[1] += -up_grad_u1b + rhop*invrhob2*pb_x;
+    src[2] += -up_grad_u2b + rhop*invrhob2*pb_y;
+    src[3] += -(${c['gamma']} - 1.0)*(pp*div_ub + up_grad_pb);
 % elif ndims == 3:
     fpdtype_t rhop = u[0], up = u[1], vp = u[2], wp = u[3], pp = u[4];
 
@@ -39,9 +39,9 @@
     fpdtype_t div_ub = ub_x + vb_y + wb_z;                
     fpdtype_t up_grad_pb = up*pb_x + vp*pb_y + wp*pb_z;    
 
-    linsrc[1] += -up_grad_u1b + rhop*invrhob2*pb_x;
-    linsrc[2] += -up_grad_u2b + rhop*invrhob2*pb_y;
-    linsrc[3] += -up_grad_u3b + rhop*invrhob2*pb_z;
-    linsrc[4] += -(${c['gamma']} - 1.0)*(pp*div_ub + up_grad_pb);
+    src[1] += -up_grad_u1b + rhop*invrhob2*pb_x;
+    src[2] += -up_grad_u2b + rhop*invrhob2*pb_y;
+    src[3] += -up_grad_u3b + rhop*invrhob2*pb_z;
+    src[4] += -(${c['gamma']} - 1.0)*(pp*div_ub + up_grad_pb);
 % endif
 </%pyfr:macro>

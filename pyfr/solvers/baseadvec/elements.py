@@ -103,9 +103,9 @@ class BaseAdvectionElements(BaseElements):
 
         # If linear solver
         if self.cfg.get('solver', 'system') == 'linear-navier-stokes':
-            self._srctplargs |= {'linsolver': True}
-            self._srctplargs |= {'c': self.cfg.items_as('constants', float)}
-            self._soln_in_src_macros |= True
+            mod, name = 'pyfr.solvers.baseadvec.kernels.linsource', 'linsource'
+            tplargs = {'c': self.cfg.items_as('constants', float)}
+            self.add_src_macro(mod, name, tplargs, ploc=False, soln=True)
 
         def copy_soln(uin):
             if self._soln_in_src_macros:
