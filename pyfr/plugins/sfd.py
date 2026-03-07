@@ -38,7 +38,6 @@ class SFDDampingPlugin(RegionMixin, BaseSolverPlugin):
             self._qbar[doff] = self._banks[doff][ridx].get().copy()
 
         self._tlast = float(intg.tcurr)
-        self._diag_tlast = float(intg.tcurr)
 
     def _err_estimate(self, intg, cfgsect):
         # MPI info
@@ -69,8 +68,6 @@ class SFDDampingPlugin(RegionMixin, BaseSolverPlugin):
             self.csv = None
 
     def _diag_norms(self, intg):
-        if self.csv is None:
-            return
         if intg.tcurr - self._diag_tlast < self._diag_dt - self.tol:
             return
         
