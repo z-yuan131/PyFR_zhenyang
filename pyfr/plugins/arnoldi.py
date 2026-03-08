@@ -1,8 +1,9 @@
 import ctypes as ct
-from ctypes.util import find_library
+import os
 from pathlib import Path
 import numpy as np
 
+from pyfr.ctypesutil import LibWrapper
 from pyfr.inifile import Inifile
 from pyfr.mpiutil import get_comm_rank_root, mpi
 from pyfr.plugins.base import BaseSolverPlugin
@@ -21,72 +22,63 @@ def _sort_idx(vals, which):
         raise ValueError(f'Unsupported which={which}')
     return np.argsort(key)[::-1]
 
-class _ParpackLib:
-    def __init__(self):
-        # This is kind of unreliable, maybe we choose to export a pyfr library
-        libname = find_library('parpack') or 'libparpack.so'
-        self.lib = ct.CDLL(libname)
+class _ParpackLib(LibWrapper):
+    _libname = 'parpack'
 
-        self.pdnaupd = self.lib.pdnaupd_c
-        self.pdneupd = self.lib.pdneupd_c
+    cint = ct.c_int
+    cdouble = ct.c_double
+    ccharp = ct.c_char_p
+    nd_i = np.ctypeslib.ndpointer(dtype=np.int32, ndim=1, flags='C_CONTIGUOUS')
+    nd_d = np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS')
+    nd_d_f = np.ctypeslib.ndpointer(dtype=np.float64, ndim=2, flags='F_CONTIGUOUS')
 
-        cint = ct.c_int
-        cdouble = ct.c_double
-        ccharp = ct.c_char_p
-        nd_i = np.ctypeslib.ndpointer(dtype=np.int32, ndim=1, flags='C_CONTIGUOUS')
-        nd_d = np.ctypeslib.ndpointer(dtype=np.float64, flags='C_CONTIGUOUS')
-        nd_d_f = np.ctypeslib.ndpointer(dtype=np.float64, ndim=2, flags='F_CONTIGUOUS')
-
-        self.pdnaupd.argtypes = [
-            cint,                        # MPI_Fint comm
-            ct.POINTER(cint),            # ido
-            ccharp,                      # bmat
-            cint,                        # n (local row count)
-            ccharp,                      # which
-            cint,                        # nev
-            cdouble,                     # tol
-            nd_d,                        # resid
-            cint,                        # ncv
-            nd_d_f,                      # v
-            cint,                        # ldv
-            nd_i,                        # iparam
-            nd_i,                        # ipntr
-            nd_d,                        # workd
-            nd_d,                        # workl
-            cint,                        # lworkl
-            ct.POINTER(cint),            # info
-        ]
-        self.pdnaupd.restype = None
-
-        self.pdneupd.argtypes = [
-            cint,                        # MPI_Fint comm
-            cint,                        # rvec
-            ccharp,                      # howmny
-            nd_i,                        # select
-            nd_d,                        # dr
-            nd_d,                        # di
-            nd_d_f,                      # z
-            cint,                        # ldz
-            cdouble,                     # sigmar
-            cdouble,                     # sigmai
-            nd_d,                        # workev
-            ccharp,                      # bmat
-            cint,                        # n
-            ccharp,                      # which
-            cint,                        # nev
-            cdouble,                     # tol
-            nd_d,                        # resid
-            cint,                        # ncv
-            nd_d_f,                      # v
-            cint,                        # ldv
-            nd_i,                        # iparam
-            nd_i,                        # ipntr
-            nd_d,                        # workd
-            nd_d,                        # workl
-            cint,                        # lworkl
-            ct.POINTER(cint),            # info
-        ]
-        self.pdneupd.restype = None
+    _functions = [
+        (None, 'pdnaupd_c',
+         cint,                        # MPI_Fint comm
+         ct.POINTER(cint),            # ido
+         ccharp,                      # bmat
+         cint,                        # n (local row count)
+         ccharp,                      # which
+         cint,                        # nev
+         cdouble,                     # tol
+         nd_d,                        # resid
+         cint,                        # ncv
+         nd_d_f,                      # v
+         cint,                        # ldv
+         nd_i,                        # iparam
+         nd_i,                        # ipntr
+         nd_d,                        # workd
+         nd_d,                        # workl
+         cint,                        # lworkl
+         ct.POINTER(cint)),           # info
+        (None, 'pdneupd_c',
+         cint,                        # MPI_Fint comm
+         cint,                        # rvec
+         ccharp,                      # howmny
+         nd_i,                        # select
+         nd_d,                        # dr
+         nd_d,                        # di
+         nd_d_f,                      # z
+         cint,                        # ldz
+         cdouble,                     # sigmar
+         cdouble,                     # sigmai
+         nd_d,                        # workev
+         ccharp,                      # bmat
+         cint,                        # n
+         ccharp,                      # which
+         cint,                        # nev
+         cdouble,                     # tol
+         nd_d,                        # resid
+         cint,                        # ncv
+         nd_d_f,                      # v
+         cint,                        # ldv
+         nd_i,                        # iparam
+         nd_i,                        # ipntr
+         nd_d,                        # workd
+         nd_d,                        # workl
+         cint,                        # lworkl
+         ct.POINTER(cint))            # info
+    ]
 
 
 class ParpackRCISession:
@@ -106,15 +98,17 @@ class ParpackRCISession:
         self.comm = comm
 
         if self.nglob <= 0:
+            # Not meaningful 
             raise ValueError('Global problem size must be positive')
         if self.k < 1 or self.k >= self.nglob:
             raise ValueError('k must satisfy 1 <= k < n')
 
-        self.ncv = int(ncv or min(max(2*self.k + 1, 20), self.nglob))
+        # Krylov subspace dimension
+        self.ncv = int(ncv or max(2*self.k + 10, 20))
         if not (self.k + 1 <= self.ncv <= self.nglob):
             raise ValueError('ncv must satisfy k + 1 <= ncv <= n')
 
-        self.maxiter = int(maxiter or max(300, 20*self.nglob))
+        self.maxiter = int(maxiter or max(300, 40*self.ncv))
 
         self._parpack = _ParpackLib()
 
@@ -197,7 +191,7 @@ class ParpackRCISession:
         self._workd[yptr:yptr + self.nloc] = self._workd[xptr:xptr + self.nloc]
 
     def _pdnaupd(self):
-        self._parpack.pdnaupd(
+        self._parpack.pdnaupd_c(
             self._commf,
             ct.byref(self._ido),
             self._bmat,
@@ -278,7 +272,7 @@ class ParpackRCISession:
         sigmai = ct.c_double(0.0)
         info_e = ct.c_int(0)
 
-        self._parpack.pdneupd(
+        self._parpack.pdneupd_c(
             self._commf,
             rvec,
             howmny,
@@ -322,7 +316,7 @@ class ParpackRCISession:
 
     def save_state(self, path, *, tcurr=None, nacptsteps=None):
         path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True) #This will raise error
 
         payload = {
             'version': np.array(1, dtype=np.int32),
@@ -415,7 +409,7 @@ class ArnoldiPlugin(BaseSolverPlugin):
         self._rank = rank
         self._root = root
 
-        self._k = self.cfg.getint(cfgsect, 'n-eigs', 6)
+        self._k = self.cfg.getint(cfgsect, 'n-eigs')
         self._which = self.cfg.get(cfgsect, 'which', 'LM')
         self._ncv = self.cfg.getint(cfgsect, 'ncv', 0) or None
         self._tol = self.cfg.getfloat(cfgsect, 'eig-tol', 1e-6)
@@ -432,31 +426,36 @@ class ArnoldiPlugin(BaseSolverPlugin):
         intg.call_plugin_dt(intg.tcurr, self._sample_dt)
 
         #self._run_at_step = self.cfg.getint(cfgsect, 'run-at-step', 0)
-        self._abort_when_done = self.cfg.getbool(cfgsect, 'abort-when-done', True)
+        
+        # Why we need this? Shouldn't we alway abort when done??
+        #self._abort_when_done = self.cfg.getbool(cfgsect, 'abort-when-done', True)
 
         # The whole naming routine should be checked, making sure they are aligned with the other plugins and when making output for the eigenvectors, we can simply use native writer.
-        basedir = Path(self.cfg.getpath(cfgsect, 'basedir', '.', abs=True))
-        basename = self.cfg.get(cfgsect, 'basename', 'parpack_lns')
+        basedir = self.cfg.getpath(cfgsect, 'basedir', '.', abs=True)
+        basename = self.cfg.get(cfgsect, 'basename')
 
-        self._vals_path = Path(self.cfg.getpath(cfgsect, 'eigs-file',
-                                str(basedir / f'{basename}.eigs.npy'), abs=True))
-        self._write_vecs_pyfrs = self.cfg.getbool(cfgsect, 'write-vecs-pyfrs', True)
-        #self._save_vecs_npy = self.cfg.getbool(cfgsect, 'save-vecs-npy', False)
-        #self._vecs_path = Path(self.cfg.getpath(cfgsect, 'vecs-file',
-        #                        str(basedir / f'{basename}.vecs.rank{rank}.npy'), abs=True))
+        #self._vals_path = Path(self.cfg.getpath(cfgsect, 'eigs-file',
+        #                        str(basedir / f'{basename}.eigs.npy'), abs=True))
+        
+        self._vals_path = os.path.join(basedir, f'{basename}_eigs.npy')
 
-        vecs_pyfrs = Path(self.cfg.getpath(cfgsect, 'vecs-pyfrs-file',
-                           str(basedir / f'{basename}.vecs.pyfrs'), abs=True))
-        self._resume = self.cfg.getbool(cfgsect, 'resume', True)
+        # Always write the eigenvectors 
+        # self._write_vecs_pyfrs = self.cfg.getbool(cfgsect, 'write-vecs-pyfrs', True)
+        #vecs_pyfrs = Path(self.cfg.getpath(cfgsect, 'vecs-pyfrs-file',
+        #                   str(basedir / f'{basename}.vecs.pyfrs'), abs=True))
+        
+        # If restarting from a krylov subspace
+        self._resume = self.cfg.getbool(cfgsect, 'resume', False)
         self._state_write_every = self.cfg.getint(cfgsect,
                                                   'state-write-every', 1)
         if self._state_write_every < 1:
             raise ValueError('solver-plugin-arnoldi: state-write-every must '
                              'be >= 1')
-        self._state_path = Path(self.cfg.getpath(
-            cfgsect, 'state-file',
-            str(basedir / f'{basename}.state.rank{rank}.npz'), abs=True
-        ))
+        #self._state_path = Path(self.cfg.getpath(
+        #    cfgsect, 'state-file',
+        #    str(basedir / f'{basename}.state.rank{rank}.npz'), abs=True
+        #))
+        self._state_path = os.path.join(basedir, f'{basename}.state.rank{rank}.npz')
 
         # Get the element map and register
         self._ele_types = list(intg.system.ele_types)
@@ -465,6 +464,7 @@ class ArnoldiPlugin(BaseSolverPlugin):
         self._ridx = getattr(intg, '_idxcurr', 0)
         self._convars = list(first(self._emap.values()).convars)
 
+        # Get local and global DOF
         self._parts = []
         for etype, b in zip(self._ele_types, self._banks):
             sh = b[self._ridx].ioshape
@@ -473,7 +473,19 @@ class ArnoldiPlugin(BaseSolverPlugin):
         self._nloc = sum(n for _, _, n in self._parts)
         self._nglob = int(self._comm.allreduce(self._nloc))
 
+        # Prepare a writer for the eigenvalues and eigenvectors
         self._vecs_writer = None
+        ershapes, erdata = {}, {}
+        for etype in self._ele_types:
+            if etype in intg.system.mesh.eidxs:
+                ershapes[etype] = (self.nvars*self._k, self._emap[etype].nupts)
+                erdata[etype] = intg.system.mesh.eidxs[etype]
+
+        self._vecs_writer = NativeWriter.from_integrator(intg, basedir, basename, 
+                                                        'arnoldi')
+        self._vecs_writer.set_shapes_eidxs(ershapes, erdata)
+        self._vecs_async_timeout = self.cfg.getfloat(cfgsect, 'async-timeout', 0)
+        """
         if self._write_vecs_pyfrs:
             ershapes, erdata = {}, {}
             for etype in self._ele_types:
@@ -486,6 +498,7 @@ class ArnoldiPlugin(BaseSolverPlugin):
             )
             self._vecs_writer.set_shapes_eidxs(ershapes, erdata)
             self._vecs_async_timeout = self.cfg.getfloat(cfgsect, 'async-timeout', 0)
+        """
 
         self._session = None
         #self._last_exchange_step = None
@@ -493,7 +506,7 @@ class ArnoldiPlugin(BaseSolverPlugin):
         self._last_state_write_step = intg.nacptsteps
 
         # If restarting, restore the full PARPACK state and requested x.
-        if intg.isrestart and self._resume and self._state_path.exists():
+        if intg.isrestart and self._resume and os.path.exists(self._state_path):
             self._restore_state(intg)
         elif not intg.isrestart:
             # If we're not restarting then make sure we initializae the
@@ -567,19 +580,26 @@ class ArnoldiPlugin(BaseSolverPlugin):
         return data
 
     def _save_results(self, intg, vals, vecs_loc):
-        self._vals_path.parent.mkdir(parents=True, exist_ok=True)
+        # self._vals_path.parent.mkdir(parents=True, exist_ok=True)
 
+        # Save the eigenvalues 
         if self._rank == self._root:
             np.save(self._vals_path, vals)
 
         #if self._save_vecs_npy:
         #    np.save(self._vecs_path, vecs_loc)
 
-        if self._vecs_writer is not None:
-            metadata = self._prepare_vecs_metadata(intg)
-            data = self._prepare_vecs_data(vecs_loc)
-            self._vecs_writer.write(data, intg.tcurr, metadata,
-                                    self._vecs_async_timeout)
+        #if self._vecs_writer is not None:
+        #    metadata = self._prepare_vecs_metadata(intg)
+        #    data = self._prepare_vecs_data(vecs_loc)
+        #    self._vecs_writer.write(data, intg.tcurr, metadata,
+        #                            self._vecs_async_timeout)
+
+        # Save eigenvectors using the pyfr native writer
+        metadata = self._prepare_vecs_metadata(intg)
+        data = self._prepare_vecs_data(vecs_loc)
+        self._vecs_writer.write(data, intg.tcurr, metadata,
+                                self._vecs_async_timeout)
 
     def _global_norm(self, xloc):
         l2loc = float(np.vdot(xloc, xloc).real)
@@ -717,8 +737,9 @@ class ArnoldiPlugin(BaseSolverPlugin):
         if self._done:
             return
 
-        if intg.nacptsteps - self._last_state_write_step >= self._state_write_every:
-            self._save_state(intg)
+        # For now let's don't consider the case where we need to save states
+        #if intg.nacptsteps - self._last_state_write_step >= self._state_write_every:
+        #    self._save_state(intg)
 
         # I don't think this is necessary since arnoldi algorithm should start immediately, but just in case, we can delay starting until a certain number of accepted steps have passed
         #if intg.nacptsteps < self._run_at_step:
@@ -743,7 +764,7 @@ class ArnoldiPlugin(BaseSolverPlugin):
         self.tout_last = intg.tcurr
 
     def finalise(self, intg):
-        self._save_state(intg)
+        # self._save_state(intg) # why saves the state at the end?
 
         super().finalise(intg)
 
