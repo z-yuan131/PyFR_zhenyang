@@ -15,14 +15,8 @@
 
     // Momentum fluxes
 % for i, j in pyfr.ndrange(ndims, ndims):
-    f[${i}][${j + 1}] = s[${i + 1}]*ub[${j + 1}]${' + p*invrhob' if i == j else ''};
+    f[${i}][${j + 1}] = ub[${i + 1}]*s[${j + 1}]${' + p*invrhob' if i == j else ''};
 % endfor
-
-
-
-// printf("%f, %f\n", ub[0], s[0]);
-
-
 </%pyfr:macro>
 
 
