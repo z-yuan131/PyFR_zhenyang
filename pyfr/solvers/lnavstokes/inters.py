@@ -60,15 +60,6 @@ class BaseflowMPIInters:
         self._set_external('gb', f'in view fpdtype_t[{self.ndims}][{self.nvars}]',
                            value=self._basegrad_lhs)
 
-        self._be.pointwise.register('pyfr.solvers.lnavstokes.kernels.bcconub')
-
-        self.kernels['con_ub'] = lambda: self._be.kernel(
-            'bcconub', tplargs=self._tplargs, dims=[self.ninterfpts],
-            extrns=self._external_args, ulin=self._scal_lhs,
-            ulout=self._comm_lhs, nlin=self._pnorm_lhs,
-            **self._external_vals
-        )
-
 
 class BaseflowBCInters:
     def __init__(self, be, lhs, elemap, cfgsect, cfg, bccomm):
@@ -88,6 +79,14 @@ class BaseflowBCInters:
         self._set_external('gb', f'in view fpdtype_t[{self.ndims}][{self.nvars}]',
                            value=self._basegrad_lhs)
 
+        self._be.pointwise.register('pyfr.solvers.lnavstokes.kernels.bcconub')
+
+        self.kernels['con_ub'] = lambda: self._be.kernel(
+            'bcconub', tplargs=self._tplargs, dims=[self.ninterfpts],
+            extrns=self._external_args, ulin=self._scal_lhs,
+            ulout=self._comm_lhs, nlin=self._pnorm_lhs,
+            **self._external_vals
+        )
 
 
 class LinearNavierStokesIntInters(TplargsMixin,
