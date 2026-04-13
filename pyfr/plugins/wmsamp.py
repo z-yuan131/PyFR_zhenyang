@@ -330,9 +330,13 @@ class WMSampPlugin(BaseSolverPlugin):
 
             pts.append(nloc)
 
-        # Prepare for the global interpolation
+        # Prepare global interpolation point sets for each requested BC
+        self.nploc, self.bcidx, self.npts = [], [], []
         for nloc in pts:
-            self._get_wmeval(nloc)
+            gnloc, gbcidx, lnpts = self._get_wmeval(nloc)
+            self.nploc.append(gnloc)
+            self.bcidx.append(gbcidx)
+            self.npts.append(lnpts)
 
         """
         if rank == 0:
@@ -372,13 +376,9 @@ class WMSampPlugin(BaseSolverPlugin):
         # Boardcast the location 
         comm, rank, root = get_comm_rank_root()
 
-        # Information
-        self.nploc, self.bcidx, self.npts = [], [], []
-
         # Local 2D array
-        n_loc = np.ascontiguousarray(nloc)
+        n_loc = np.ascontiguousarray(nloc, dtype=self.dtype)
         n_i, m = n_loc.shape[0], self.ndims
-        self.npts.append(n_i)
 
         # npts per rank
         row_counts = np.array(comm.allgather(n_i), dtype=np.int32)
@@ -388,7 +388,6 @@ class WMSampPlugin(BaseSolverPlugin):
         
         # look-up table
         bcidx = np.column_stack((row_starts, row_ends))
-        self.bcidx.append(bcidx)
 
         # Prepare for boardcast
         elem_counts = row_counts * m
@@ -404,7 +403,7 @@ class WMSampPlugin(BaseSolverPlugin):
 
         # Reshape to 2D global array
         nploc = a_global_flat.reshape(n_rows_global, m)
-        self.nploc.append(nploc)
+        return nploc, bcidx, n_i
 
     def _config_ubases(self, intg):
         # Get the solution bases from the system
@@ -412,4 +411,3 @@ class WMSampPlugin(BaseSolverPlugin):
                   for etype, eles in intg.system.ele_map.items()}
         
         return ubases
-
