@@ -328,6 +328,8 @@ class WMSampPlugin(BaseSolverPlugin):
                 self.ym.append(None)
                 nloc = np.empty((0, self.ndims), dtype=self.dtype)
 
+                ploc = np.empty((self.ndims, 0), dtype=self.dtype)
+
             pts.append(nloc)
 
         # Prepare global interpolation point sets for each requested BC
@@ -338,16 +340,19 @@ class WMSampPlugin(BaseSolverPlugin):
             self.bcidx.append(gbcidx)
             self.npts.append(lnpts)
 
-        """
+        #"""
+        ploc = comm.gather(ploc, root = root)
+        ploc = np.concatenate(ploc, axis = 1) if rank == root else None
         if rank == 0:
             import matplotlib.pyplot as plt 
             plt.figure()
             nnloc = np.concatenate(self.nploc, axis = 0)
-            print(nnloc.shape)
+            print(nnloc.shape, ploc.shape)
             plt.plot(nnloc[:,0], nnloc[:,1],'.')
             plt.plot(ploc[0], ploc[1],'r.')
             plt.axis('equal')
-            plt.savefig('/scratch/zhenyang/compute/pyfr/Naca0012trip/wmles/2d/wm_loc.png')
+            #plt.savefig('/scratch/zhenyang/compute/pyfr/Naca0012trip/wmles/2d/wm_loc.png')
+            plt.savefig('./wm_loc.png')
             plt.show()
         comm.barrier()
         raise RuntimeError
