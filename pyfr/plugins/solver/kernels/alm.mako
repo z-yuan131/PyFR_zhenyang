@@ -8,10 +8,15 @@
   fpdtype_t f[${ndims}] = {};
   fpdtype_t invrho = 1/u[0];
 
-
+  // Forcing with the Gaussian filter
   % for i in range(npts):
 
-    g = exp(-((ploc[0] - nloc[${i}][0])*(ploc[0] - nloc[${i}][0]) + (ploc[1] - nloc[${i}][1])*(ploc[1] - nloc[${i}][1]) + (ploc[2] - nloc[${i}][2])*(ploc[2] - nloc[${i}][2]))*${eph2}) ;
+    fpdtype_t r2 = 0.0;
+    % for j in range(ndims):
+      r2 += (ploc[${j}] - nloc[${i}][${j}])*(ploc[${j}] - nloc[${i}][${j}]);
+    % endfor
+
+    g = exp(-r2*${eph2});
      
     % for j in range(ndims):
       f[${j}] += g*forc[${i}][${j}];
@@ -19,12 +24,12 @@
 
   % endfor
 
-  // Momentum
+  // Momentum eq.
   % for i in range(ndims):
     src[${i + 1}] += f[${i}] * ${ephpi3};
   % endfor
 
-  // Energy
+  // Energy eq.
   % for i in range(ndims):
     src[${nvars - 1}] += f[${i}]*(u[${i+1}] * invrho ) * ${ephpi3};
   % endfor

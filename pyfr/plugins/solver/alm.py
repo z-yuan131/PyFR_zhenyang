@@ -69,7 +69,7 @@ class ALMPlugin(BaseSolverPlugin):
         for etype, eles in self.ele_map.items():
             eles.add_src_macro(
                 'pyfr.plugins.solver.kernels.alm', 'alm',
-                self.macro_params, ploc=True, soln=False
+                self.macro_params, ploc=True, soln=True
             )
 
             alm_info[etype] = vs = ALMInfo(
@@ -77,9 +77,9 @@ class ALMPlugin(BaseSolverPlugin):
                     intg.backend.matrix(forc.shape, forc, tags={'align'}),
                     )
 
-            eles._set_external('forc', f'in broadcast fpdtype_t[{npts}][{ndim}]',
+            eles.set_external('forc', f'in broadcast fpdtype_t[{npts}][{ndim}]',
                                value=vs.forc)
-            eles._set_external('nloc', f'in broadcast fpdtype_t[{npts}][{ndim}]', 
+            eles.set_external('nloc', f'in broadcast fpdtype_t[{npts}][{ndim}]', 
                                value=vs.nloc)
 
         return alm_info
@@ -90,6 +90,13 @@ class ALMPlugin(BaseSolverPlugin):
         self.omega = omega = self.cfg.getfloat(cfgsect, 'omega')
         self.M = self.cfg.getfloat(cfgsect, 'M')
         self.mu = self.cfg.getfloat(cfgsect, 'mu')
+        self.centre = np.asarray(
+            self.cfg.getliteral(cfgsect, 'centre', [0.0, 0.0, 0.0]),
+            dtype=float
+        )
+
+        if self.centre.shape != (self.ndims,):
+            raise ValueError('ALM centre must be a 3D coordinate')
 
         # Radial actuator-point locations, centred in each radial segment
         r_ini = self.cfg.getfloat(cfgsect, 'r_ini')
@@ -116,8 +123,9 @@ class ALMPlugin(BaseSolverPlugin):
 
         # Initial actuator point locations in the x-normal rotor plane
         self.pts = np.zeros((npts, self.ndims))
-        self.pts[:, 1] = r*np.cos(theta0)
-        self.pts[:, 2] = r*np.sin(theta0)
+        self.pts[:] = self.centre
+        self.pts[:, 1] += r*np.cos(theta0)
+        self.pts[:, 2] += r*np.sin(theta0)
 
         # Constant parameters for the macro kernel
         self.macro_params = {
@@ -145,8 +153,9 @@ class ALMPlugin(BaseSolverPlugin):
     def _update_solution(self, intg): 
         # New location
         theta = self.theta0 + self.omega*intg.tcurr
-        self.pts[:, 1] = self.r*np.cos(theta)
-        self.pts[:, 2] = self.r*np.sin(theta)
+        self.pts[:] = self.centre
+        self.pts[:, 1] += self.r*np.cos(theta)
+        self.pts[:, 2] += self.r*np.sin(theta)
 
         # Locate the new point list
         locs = self.plocator.locate(self.pts)[self.locf]
@@ -195,10 +204,10 @@ class ALMPlugin(BaseSolverPlugin):
         drag = 0.5 * rho * vrel2 * self.c * (cd_raw / compress) * self.dr
 
         # Transform blade-frame forces back to solver coordinates
-        ftheta = drag*np.cos(phi) + lift*np.sin(phi)
+        ftheta = -drag*np.cos(phi) - lift*np.sin(phi)
         fx = -lift*np.cos(phi) + drag*np.sin(phi)
-        fy = ftheta*sin_theta
-        fz = -ftheta*cos_theta
+        fy = -ftheta*sin_theta
+        fz = ftheta*cos_theta
 
         self.forc[:, 0] = -fx
         self.forc[:, 1] = -fy
